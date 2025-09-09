@@ -391,7 +391,8 @@ class RobloxLoginDiagnostics:
                 'recommended_actions': recommended_actions
             },
             'test_environment': {
-                'selenium_grid_url': SELENIUM_GRID_URL,
+                'selenium_grid_url': self.debug_data.get('selenium_url', 'Connection failed'),
+                'selenium_urls_tested': SELENIUM_GRID_URLS,
                 'username_tested': ALT_USERNAME,
                 'browser': "Chrome/120.0.0.0",
                 'browser_settings': "Headless, No-sandbox, Anti-detection",

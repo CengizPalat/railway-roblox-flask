@@ -903,7 +903,7 @@ def home():
     """Root endpoint with system information"""
     return jsonify({
         "status": "Roblox Analytics API - With Verification Solving",
-        "version": "4.0.0",
+        "version": "4.0.1",
         "python_version": "3.12 Compatible",
         "cloudflare_bypass": "SeleniumBase UC Mode ✅",
         "verification_solving": "2Captcha + Manual Methods ✅",
@@ -920,11 +920,11 @@ def home():
         ],
         "endpoints": [
             "GET /status - System status",
-            "POST /test-cloudflare - Test Cloudflare bypass",
-            "POST /trigger-diagnostic - Full analytics with verification",
+            "GET|POST /test-cloudflare - Test Cloudflare bypass",
+            "GET|POST /trigger-diagnostic - Full analytics with verification",
             "GET /results - Latest results",
-            "POST /login-test - Test login with verification",
-            "POST /test-verification - Test verification solving only"
+            "GET|POST /login-test - Test login with verification",
+            "GET|POST /test-verification - Test verification solving only"
         ],
         "timestamp": datetime.now().isoformat()
     })
@@ -950,9 +950,9 @@ def status():
         "timestamp": datetime.now().isoformat()
     })
 
-@app.route('/test-cloudflare', methods=['POST'])
+@app.route('/test-cloudflare', methods=['GET', 'POST'])
 def test_cloudflare_endpoint():
-    """Test Cloudflare bypass capability"""
+    """Test Cloudflare bypass capability (accepts both GET and POST)"""
     try:
         logger.info("Testing Cloudflare bypass via endpoint...")
         
@@ -969,9 +969,9 @@ def test_cloudflare_endpoint():
             "timestamp": datetime.now().isoformat()
         }), 500
 
-@app.route('/test-verification', methods=['POST'])
+@app.route('/test-verification', methods=['GET', 'POST'])
 def test_verification_endpoint():
-    """Test verification solving only"""
+    """Test verification solving only (accepts both GET and POST)"""
     try:
         logger.info("Testing verification solving...")
         
@@ -1019,9 +1019,9 @@ def test_verification_endpoint():
             "timestamp": datetime.now().isoformat()
         }), 500
 
-@app.route('/login-test', methods=['POST'])
+@app.route('/login-test', methods=['GET', 'POST'])
 def login_test_endpoint():
-    """Test Roblox login with verification handling"""
+    """Test Roblox login with verification handling (accepts both GET and POST)"""
     try:
         logger.info("Testing Roblox login with verification handling...")
         
@@ -1038,12 +1038,17 @@ def login_test_endpoint():
             "timestamp": datetime.now().isoformat()
         }), 500
 
-@app.route('/trigger-diagnostic', methods=['POST'])
+@app.route('/trigger-diagnostic', methods=['GET', 'POST'])
 def trigger_diagnostic():
-    """Trigger complete analytics collection with comprehensive diagnostics"""
+    """Trigger complete analytics collection with comprehensive diagnostics (accepts both GET and POST)"""
     try:
-        data = request.get_json() or {}
-        game_id = data.get('game_id')
+        # Handle both GET and POST requests
+        if request.method == 'POST' and request.get_json():
+            data = request.get_json()
+        else:
+            data = {}
+            
+        game_id = data.get('game_id') or request.args.get('game_id')
         
         logger.info(f"🚀 Starting complete diagnostic with verification solving for game_id: {game_id}")
         result = analytics.run_complete_analytics_collection(game_id)
@@ -1106,10 +1111,10 @@ def not_found(error):
         "available_endpoints": [
             "GET /",
             "GET /status", 
-            "POST /test-cloudflare",
-            "POST /login-test",
-            "POST /test-verification",
-            "POST /trigger-diagnostic",
+            "GET|POST /test-cloudflare",
+            "GET|POST /login-test",
+            "GET|POST /test-verification",
+            "GET|POST /trigger-diagnostic",
             "GET /results",
             "GET /health"
         ]

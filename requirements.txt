@@ -1,4 +1,4 @@
-# FIXED: Python 3.12 Compatible Requirements
+# UPDATED: Python 3.12 Compatible Requirements with Undetected ChromeDriver
 # Railway Flask Server Dependencies
 
 # Web Framework
@@ -6,8 +6,8 @@ Flask==3.0.0
 Flask-CORS==4.0.0
 gunicorn==21.2.0
 
-# Selenium Automation  
-selenium==4.15.2
+# CRITICAL: Undetected ChromeDriver for Cloudflare bypass
+undetected-chromedriver==3.5.5
 
 # HTTP Requests
 requests==2.31.0
@@ -26,5 +26,5 @@ python-dateutil==2.8.2
 # JSON Processing
 jsonschema==4.21.1
 
-# Basic utilities only (removed problematic packages)
+# Basic utilities only
 urllib3==2.2.1

@@ -36,21 +36,21 @@ class RobloxVerificationSolver:
                 self.solver = TwoCaptcha(self.api_key)
                 logger.info("2Captcha solver initialized successfully")
             except ImportError:
-                logger.warning("python2captcha not installed - verification solving disabled")
+                logger.warning("python2captcha not installed - verification solving will use manual methods only")
             except Exception as e:
                 logger.warning(f"Failed to initialize 2Captcha: {str(e)}")
         else:
-            logger.info("No 2Captcha API key provided - using manual verification handling")
+            logger.info("No 2Captcha API key provided - using manual verification handling only")
     
     def solve_roblox_verification(self, sb):
-        """Handle Roblox verification puzzles"""
+        """Handle Roblox verification puzzles with multiple solving methods"""
         try:
-            logger.info("Detected Roblox verification challenge, attempting to solve...")
+            logger.info("🧩 Detected Roblox verification challenge, attempting to solve...")
             
             # Wait for puzzle to fully load
             sb.sleep(5)
             
-            # Take screenshot of the puzzle
+            # Take screenshot of the puzzle for diagnostics
             screenshot_data = sb.get_screenshot_as_png()
             screenshot_b64 = base64.b64encode(screenshot_data).decode()
             
@@ -74,10 +74,17 @@ class RobloxVerificationSolver:
                 
         except Exception as e:
             logger.error(f"Verification solving error: {str(e)}")
+            try:
+                screenshot_data = sb.get_screenshot_as_png()
+                screenshot_b64 = base64.b64encode(screenshot_data).decode()
+            except:
+                screenshot_b64 = None
+                
             return {
                 "success": False, 
                 "error": str(e),
-                "screenshot": screenshot_b64 if 'screenshot_b64' in locals() else None
+                "screenshot": screenshot_b64,
+                "timestamp": datetime.now().isoformat()
             }
     
     def try_automated_solving(self, sb, page_source, screenshot_b64):
@@ -131,7 +138,7 @@ class RobloxVerificationSolver:
         try:
             logger.info("Attempting image puzzle solving...")
             
-            # Click Start Puzzle
+            # Click Start Puzzle if present
             if sb.is_element_present("button:contains('Start Puzzle')", timeout=3):
                 sb.click("button:contains('Start Puzzle')")
                 sb.sleep(3)
@@ -268,6 +275,7 @@ class RobloxVerificationSolver:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+
 class RobloxAnalytics:
     def __init__(self):
         self.username = "ByddyY8rPao2124"
@@ -294,17 +302,56 @@ class RobloxAnalytics:
             "--disable-background-timer-throttling",
             "--disable-backgrounding-occluded-windows",
             "--disable-renderer-backgrounding",
+            "--disable-field-trial-config",
+            "--disable-back-forward-cache",
+            "--disable-background-networking",
             
             # Anti-detection options
             "--disable-blink-features=AutomationControlled",
             "--disable-automation",
             "--disable-infobars",
             "--disable-extensions-file-access-check",
+            "--disable-extensions-http-throttling",
+            "--disable-extensions-app-file-protocol",
+            
+            # Network and security
+            "--disable-sync",
+            "--disable-translate",
+            "--disable-ipc-flooding-protection",
+            "--disable-default-apps",
+            "--disable-component-extensions-with-background-pages",
+            "--disable-client-side-phishing-detection",
+            "--disable-hang-monitor",
+            "--disable-popup-blocking",
+            "--disable-prompt-on-repost",
+            "--disable-domain-reliability",
+            "--disable-component-update",
+            "--disable-background-downloads",
+            "--disable-add-to-shelf",
+            "--disable-office-editing-component-extension",
+            "--disable-file-system",
+            
+            # Rendering optimizations
+            "--aggressive-cache-discard",
+            "--force-color-profile=srgb",
+            "--disable-threaded-animation",
+            "--disable-threaded-scrolling",
+            "--disable-partial-raster",
+            "--disable-skia-runtime-opts",
+            "--run-all-compositor-stages-before-draw",
+            "--disable-new-content-rendering-timeout",
+            "--disable-canvas-aa",
+            "--disable-2d-canvas-clip-aa",
+            "--disable-gl-drawing-for-tests",
+            "--enable-low-res-tiling",
+            "--disable-webgl",
+            "--disable-webgl2",
             
             # Additional stealth options
             "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "--accept-lang=en-US,en;q=0.9",
             "--disable-logging",
+            "--disable-log-file",
             "--silent"
         ]
         
@@ -318,7 +365,23 @@ class RobloxAnalytics:
                 "--disable-extensions",
                 "--no-first-run",
                 "--disable-plugins",
-                "--disable-images"
+                "--disable-images",
+                "--disable-javascript-harmony-shipping",
+                "--disable-background-mode",
+                "--disable-background-networking",
+                "--disable-client-side-phishing-detection",
+                "--disable-default-apps",
+                "--disable-hang-monitor",
+                "--disable-popup-blocking",
+                "--disable-prompt-on-repost",
+                "--disable-sync",
+                "--disable-translate",
+                "--metrics-recording-only",
+                "--no-first-run",
+                "--safebrowsing-disable-auto-update",
+                "--enable-automation",
+                "--password-store=basic",
+                "--use-mock-keychain"
             ])
         else:
             logger.info("Applying local development Chrome options")
@@ -336,23 +399,25 @@ class RobloxAnalytics:
             chrome_options = self.get_comprehensive_chrome_options()
             logger.info(f"Starting SeleniumBase with {len(chrome_options)} Chrome options")
             
+            # Initialize SeleniumBase with UC mode and comprehensive options
             sb = SB(
                 uc=True,  # Undetected Chrome mode for Cloudflare bypass
                 headless=True if (os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('PORT')) else False,
                 browser="chrome",
                 chromium_arg=" ".join(chrome_options),
-                page_load_strategy="eager",
-                timeout_multiplier=2.0,
-                incognito=True,
-                guest_mode=True
+                page_load_strategy="eager",  # Faster page loading
+                timeout_multiplier=2.0,  # More generous timeouts for Railway
+                incognito=True,  # Fresh session each time
+                guest_mode=True  # Additional stealth
             )
             
-            sb.open_new_window()
+            sb.open_new_window()  # Fresh window
             logger.info("SeleniumBase session started successfully")
             yield sb
             
         except Exception as e:
             logger.error(f"Failed to create SeleniumBase session: {str(e)}")
+            logger.error(traceback.format_exc())
             raise
         finally:
             if sb:
@@ -367,24 +432,34 @@ class RobloxAnalytics:
         try:
             logger.info("Testing Cloudflare bypass...")
             
+            # Test with Roblox main page
             sb.get("https://www.roblox.com")
-            sb.sleep(8)
+            sb.sleep(8)  # Allow time for any challenges
             
+            # Capture current state
             current_url = sb.get_current_url()
             page_title = sb.get_title()
             page_source = sb.get_page_source()
             
+            # Take diagnostic screenshot
             screenshot_data = sb.get_screenshot_as_png()
             screenshot_b64 = base64.b64encode(screenshot_data).decode()
             
+            # Check for Cloudflare indicators
             cloudflare_indicators = [
-                "checking your browser", "cloudflare", "please wait",
-                "verifying you are human", "browser verification"
+                "checking your browser",
+                "cloudflare",
+                "please wait",
+                "verifying you are human",
+                "browser verification",
+                "challenge-platform",
+                "cf-browser-verification"
             ]
             
             page_lower = page_source.lower()
             detected_indicators = [indicator for indicator in cloudflare_indicators if indicator in page_lower]
             
+            # Additional checks
             has_roblox_content = any(term in page_lower for term in ["roblox", "sign up", "log in", "games"])
             challenge_detected = len(detected_indicators) > 0
             
@@ -405,6 +480,7 @@ class RobloxAnalytics:
             return {
                 "success": False,
                 "error": str(e),
+                "traceback": traceback.format_exc(),
                 "timestamp": datetime.now().isoformat()
             }
 
@@ -413,12 +489,16 @@ class RobloxAnalytics:
         try:
             logger.info(f"Loading page: {url}")
             sb.get(url)
+            
+            # Initial wait
             sb.sleep(5)
             
+            # Check for Cloudflare challenge
             page_source = sb.get_page_source().lower()
             if any(indicator in page_source for indicator in ["checking your browser", "cloudflare", "please wait"]):
                 logger.info("Cloudflare challenge detected, waiting for bypass...")
                 
+                # Wait for challenge to complete (UC mode should handle this)
                 max_wait = 30
                 wait_interval = 2
                 waited = 0
@@ -448,23 +528,28 @@ class RobloxAnalytics:
         try:
             logger.info("Starting Roblox login process...")
             
+            # Navigate to login page
             if not self.handle_initial_page_load(sb, "https://www.roblox.com/login"):
                 return {"success": False, "error": "Failed to load login page"}
             
-            # Handle cookie consent
+            # Handle cookie consent if present
             try:
                 if sb.is_element_present("button[aria-label='Accept All']", timeout=3):
                     logger.info("Accepting cookie consent...")
                     sb.click("button[aria-label='Accept All']")
                     sb.sleep(2)
-            except:
-                pass
+            except Exception as e:
+                logger.info("No cookie consent dialog found or failed to handle")
             
-            # Fill login form
-            username_selectors = ["#login-username", "input[placeholder*='Username']", "input[name='username']"]
+            # Wait for login form to be available
+            login_form_selectors = [
+                "#login-username",
+                "input[placeholder*='Username']",
+                "input[name='username']"
+            ]
+            
             username_field = None
-            
-            for selector in username_selectors:
+            for selector in login_form_selectors:
                 try:
                     if sb.is_element_present(selector, timeout=5):
                         username_field = selector
@@ -478,16 +563,24 @@ class RobloxAnalytics:
                 return {
                     "success": False, 
                     "error": "Username field not found",
-                    "screenshot": screenshot_b64
+                    "screenshot": screenshot_b64,
+                    "current_url": sb.get_current_url(),
+                    "page_source_snippet": sb.get_page_source()[:1000]
                 }
             
+            # Fill login credentials
             logger.info("Filling login credentials...")
             sb.type(username_field, self.username)
             
-            # Fill password
-            password_selectors = ["#login-password", "input[type='password']"]
-            password_field = None
+            # Find password field
+            password_selectors = [
+                "#login-password",
+                "input[placeholder*='Password']", 
+                "input[name='password']",
+                "input[type='password']"
+            ]
             
+            password_field = None
             for selector in password_selectors:
                 try:
                     if sb.is_element_present(selector, timeout=3):
@@ -502,7 +595,12 @@ class RobloxAnalytics:
                 return {"success": False, "error": "Password field not found"}
             
             # Submit login
-            login_button_selectors = ["#login-button", "button[type='submit']", ".btn-primary-md"]
+            login_button_selectors = [
+                "#login-button",
+                "button[type='submit']",
+                "button[data-testid='login-button']",
+                ".btn-primary-md"
+            ]
             
             for selector in login_button_selectors:
                 try:
@@ -513,14 +611,22 @@ class RobloxAnalytics:
                 except:
                     continue
             
+            # Wait for login processing
             sb.sleep(8)
             
-            # Check for verification challenge
+            # Check login result
             current_url = sb.get_current_url()
+            logger.info(f"After login attempt, current URL: {current_url}")
+            
+            # Check for verification challenge
             page_text = sb.get_text("body").lower()
             
             if any(indicator in page_text for indicator in ["verification", "start puzzle", "captcha"]):
                 logger.info("🧩 VERIFICATION CHALLENGE DETECTED - Attempting to solve...")
+                
+                # Take screenshot before verification attempt
+                screenshot_data = sb.get_screenshot_as_png()
+                screenshot_b64 = base64.b64encode(screenshot_data).decode()
                 
                 verification_result = self.verification_solver.solve_roblox_verification(sb)
                 
@@ -531,29 +637,33 @@ class RobloxAnalytics:
                     current_url = sb.get_current_url()
                 else:
                     logger.warning(f"❌ Verification solving failed: {verification_result.get('error', 'Unknown error')}")
-                    screenshot_data = sb.get_screenshot_as_png()
-                    screenshot_b64 = base64.b64encode(screenshot_data).decode()
                     return {
                         "success": False,
                         "error": "Verification challenge could not be solved",
                         "verification_result": verification_result,
-                        "screenshot": screenshot_b64
+                        "screenshot": verification_result.get("screenshot", screenshot_b64)
                     }
             
-            # Check for 2FA
+            # Handle 2FA or verification if needed
             if "challenge" in current_url or "verification" in current_url or "two-step" in current_url:
-                logger.info("2FA/Additional verification detected, waiting...")
-                sb.sleep(45)
+                logger.info("2FA/Verification challenge detected, waiting...")
+                
+                # Wait for manual verification or automatic solving
+                verification_wait = 45
+                sb.sleep(verification_wait)
                 current_url = sb.get_current_url()
+                logger.info(f"After verification wait, current URL: {current_url}")
             
-            # Check success
+            # Check for successful login indicators
             success_indicators = [
-                "home" in current_url, "dashboard" in current_url,
-                "/users/" in current_url, "create.roblox.com" in current_url
+                "home" in current_url,
+                "dashboard" in current_url,
+                "/users/" in current_url,
+                "create.roblox.com" in current_url
             ]
             
             if any(success_indicators):
-                logger.info("✅ Login successful!")
+                logger.info("✅ Login appears successful!")
                 self.last_login = datetime.now()
                 return {
                     "success": True,
@@ -561,7 +671,7 @@ class RobloxAnalytics:
                     "final_url": current_url
                 }
             
-            # Try navigating to creator dashboard
+            # Try navigating to creator dashboard to confirm access
             logger.info("Attempting to navigate to creator dashboard...")
             sb.get("https://create.roblox.com/")
             sb.sleep(8)
@@ -575,7 +685,7 @@ class RobloxAnalytics:
                     "final_url": sb.get_current_url()
                 }
             
-            # Login failed
+            # Login may have failed
             screenshot_data = sb.get_screenshot_as_png()
             screenshot_b64 = base64.b64encode(screenshot_data).decode()
             
@@ -588,6 +698,7 @@ class RobloxAnalytics:
             
         except Exception as e:
             logger.error(f"Login error: {str(e)}")
+            screenshot_data = None
             try:
                 screenshot_data = sb.get_screenshot_as_png()
                 screenshot_b64 = base64.b64encode(screenshot_data).decode()
@@ -602,8 +713,9 @@ class RobloxAnalytics:
             }
 
     def capture_qptr_data(self, sb, game_id: Optional[str] = None) -> Dict[str, Any]:
-        """Capture QPTR data from creator dashboard"""
+        """Capture QPTR data from creator dashboard with comprehensive extraction"""
         try:
+            # Determine analytics URL
             if game_id:
                 analytics_url = f"https://create.roblox.com/dashboard/creations/experiences/{game_id}/analytics"
                 logger.info(f"Navigating to specific game analytics: {game_id}")
@@ -611,11 +723,14 @@ class RobloxAnalytics:
                 analytics_url = "https://create.roblox.com/dashboard/creations"
                 logger.info("Navigating to general creations dashboard")
                 
+            # Navigate to analytics
             if not self.handle_initial_page_load(sb, analytics_url):
                 return {"success": False, "error": "Failed to load analytics page"}
             
+            # Wait for page to fully load
             sb.sleep(10)
             
+            # Take diagnostic screenshot
             screenshot_data = sb.get_screenshot_as_png()
             screenshot_b64 = base64.b64encode(screenshot_data).decode()
             
@@ -623,46 +738,72 @@ class RobloxAnalytics:
             qptr_data = {}
             analytics_data = {}
             
+            # Comprehensive selectors for different QPTR representations
             qptr_selectors = [
-                "[data-testid*='qptr']", "[data-testid*='playthrough']", 
-                "[data-testid*='retention']", ".metric-card", ".analytics-metric",
-                "[class*='metric']", "[class*='stat']", ".dashboard-stat"
+                # Direct QPTR selectors
+                "[data-testid*='qptr']",
+                "[data-testid*='playthrough']", 
+                "[data-testid*='play-through']",
+                "[data-testid*='retention']",
+                
+                # General metric selectors
+                ".metric-card",
+                ".analytics-metric",
+                "[class*='metric']",
+                "[class*='stat']",
+                ".dashboard-stat",
+                
+                # Percentage value selectors
+                "[class*='percentage']",
+                ".percent-value",
+                
+                # Text content selectors
+                "*:contains('%')",
+                "span:contains('%')",
+                "div:contains('%')"
             ]
             
             for selector in qptr_selectors:
                 try:
                     if sb.is_element_present(selector, timeout=3):
                         elements = sb.find_elements(selector)
-                        for i, elem in enumerate(elements[:10]):
+                        for i, elem in enumerate(elements[:10]):  # Limit to first 10 matches
                             try:
                                 text = elem.text.strip()
                                 if text and "%" in text:
+                                    # Check if this looks like QPTR data
                                     text_lower = text.lower()
                                     if any(keyword in text_lower for keyword in [
                                         'play', 'through', 'retention', 'rate', 'qualified'
                                     ]):
                                         qptr_data[f"{selector}_{i}"] = text
-                                    elif text and len(text) < 50:
+                                    elif text and len(text) < 50:  # Any percentage under 50 chars
                                         analytics_data[f"{selector}_{i}"] = text
-                            except:
+                            except Exception as elem_error:
+                                logger.debug(f"Error extracting from element: {elem_error}")
                                 continue
-                except:
+                except Exception as selector_error:
+                    logger.debug(f"Selector {selector} failed: {selector_error}")
                     continue
             
-            # Extract from page source using regex
+            # Try to extract data from page source using regex
             page_source = sb.get_page_source()
+            
+            # Look for percentage patterns in source
             percentage_patterns = [
                 r'(?:qptr|playthrough|retention).*?(\d+\.?\d*%)',
-                r'(\d+\.?\d*%)',
-                r'"value":\s*"(\d+\.?\d*%)"'
+                r'(\d+\.?\d*%)',  # Any percentage
+                r'"value":\s*"(\d+\.?\d*%)"',  # JSON value patterns
+                r'data-value="(\d+\.?\d*%)"'  # Data attribute patterns
             ]
             
             source_extracted = {}
             for i, pattern in enumerate(percentage_patterns):
                 matches = re.findall(pattern, page_source, re.IGNORECASE)
                 if matches:
-                    source_extracted[f"pattern_{i}"] = matches[:5]
+                    source_extracted[f"pattern_{i}"] = matches[:5]  # First 5 matches
             
+            # Get current page info
             current_url = sb.get_current_url()
             page_title = sb.get_title()
             
@@ -681,6 +822,7 @@ class RobloxAnalytics:
             
         except Exception as e:
             logger.error(f"QPTR capture error: {str(e)}")
+            screenshot_data = None
             try:
                 screenshot_data = sb.get_screenshot_as_png()
                 screenshot_b64 = base64.b64encode(screenshot_data).decode()
@@ -696,7 +838,7 @@ class RobloxAnalytics:
             }
 
     def run_complete_analytics_collection(self, game_id: Optional[str] = None) -> Dict[str, Any]:
-        """Main method to run complete analytics collection with verification handling"""
+        """Main method to run complete analytics collection with full error handling"""
         start_time = datetime.now()
         results = {
             "start_time": start_time.isoformat(),
@@ -729,13 +871,16 @@ class RobloxAnalytics:
                 qptr_result = self.capture_qptr_data(sb, game_id)
                 results["steps"]["qptr_capture"] = qptr_result
                 
+                # Overall success assessment
                 results["overall_success"] = (
                     cloudflare_result.get("success", False) and
                     login_result.get("success", False) and
                     qptr_result.get("success", False)
                 )
                 
+                # Store results for later retrieval
                 self.last_results = results
+                
                 return results
                 
         except Exception as e:
@@ -820,6 +965,7 @@ def test_cloudflare_endpoint():
         return jsonify({
             "success": False,
             "error": str(e),
+            "traceback": traceback.format_exc(),
             "timestamp": datetime.now().isoformat()
         }), 500
 
@@ -847,9 +993,14 @@ def test_verification_endpoint():
                     result = analytics.verification_solver.solve_roblox_verification(sb)
                     return jsonify(result)
                 else:
+                    # Take screenshot anyway
+                    screenshot_data = sb.get_screenshot_as_png()
+                    screenshot_b64 = base64.b64encode(screenshot_data).decode()
+                    
                     return jsonify({
                         "success": True,
                         "message": "No verification challenge appeared",
+                        "screenshot": screenshot_b64,
                         "timestamp": datetime.now().isoformat()
                     })
             
@@ -864,6 +1015,7 @@ def test_verification_endpoint():
         return jsonify({
             "success": False,
             "error": str(e),
+            "traceback": traceback.format_exc(),
             "timestamp": datetime.now().isoformat()
         }), 500
 
@@ -882,12 +1034,13 @@ def login_test_endpoint():
         return jsonify({
             "success": False,
             "error": str(e),
+            "traceback": traceback.format_exc(),
             "timestamp": datetime.now().isoformat()
         }), 500
 
 @app.route('/trigger-diagnostic', methods=['POST'])
 def trigger_diagnostic():
-    """Trigger complete analytics collection with verification handling"""
+    """Trigger complete analytics collection with comprehensive diagnostics"""
     try:
         data = request.get_json() or {}
         game_id = data.get('game_id')
@@ -902,6 +1055,7 @@ def trigger_diagnostic():
         return jsonify({
             "success": False,
             "error": str(e),
+            "traceback": traceback.format_exc(),
             "timestamp": datetime.now().isoformat()
         }), 500
 
@@ -944,6 +1098,30 @@ def health():
         "verification_ready": True,
         "timestamp": datetime.now().isoformat()
     })
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({
+        "error": "Endpoint not found",
+        "available_endpoints": [
+            "GET /",
+            "GET /status", 
+            "POST /test-cloudflare",
+            "POST /login-test",
+            "POST /test-verification",
+            "POST /trigger-diagnostic",
+            "GET /results",
+            "GET /health"
+        ]
+    }), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({
+        "error": "Internal server error",
+        "message": str(error),
+        "timestamp": datetime.now().isoformat()
+    }), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

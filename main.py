@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-RAILWAY FLASK SERVER - COMPLETE WITH COOKIE CONSENT FIX
+RAILWAY FLASK SERVER - COMPLETE WITH BROWSER VERIFICATION FIX
 File: main.py
-FIXED: Handles Roblox cookie consent banner that blocks login attempts
+FIXED: Handles Cloudflare "Verifying browser..." challenge + Cookie consent
 """
 
 import os
@@ -11,6 +11,7 @@ import json
 import base64
 import threading
 import asyncio
+import random
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -134,7 +135,7 @@ def find_working_selenium_url():
     return None
 
 class RobloxLoginDiagnostics:
-    """Advanced Roblox login diagnostics with Cookie Consent Fix"""
+    """Advanced Roblox login diagnostics with Browser Verification + Cookie Consent Fix"""
     
     def __init__(self):
         self.report_id = None
@@ -151,7 +152,7 @@ class RobloxLoginDiagnostics:
         }
     
     def get_chrome_options(self):
-        """Railway-optimized Chrome options"""
+        """Enhanced Chrome options for better stealth and browser verification bypass"""
         options = Options()
         
         # Core Railway compatibility options
@@ -162,22 +163,48 @@ class RobloxLoginDiagnostics:
         options.add_argument("--disable-plugins")
         options.add_argument("--headless")
         
-        # Performance and stability options
-        options.add_argument("--disable-web-security")
+        # Enhanced stealth options for browser verification
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_argument("--disable-automation")
+        options.add_argument("--disable-infobars")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-browser-side-navigation")
         options.add_argument("--disable-features=VizDisplayCompositor")
         options.add_argument("--disable-background-timer-throttling")
         options.add_argument("--disable-renderer-backgrounding")
         options.add_argument("--disable-backgrounding-occluded-windows")
+        options.add_argument("--disable-client-side-phishing-detection")
+        options.add_argument("--disable-default-apps")
+        options.add_argument("--disable-hang-monitor")
+        options.add_argument("--disable-popup-blocking")
+        options.add_argument("--disable-prompt-on-repost")
+        options.add_argument("--disable-sync")
+        options.add_argument("--disable-translate")
+        options.add_argument("--disable-web-resources")
+        options.add_argument("--metrics-recording-only")
+        options.add_argument("--no-first-run")
+        options.add_argument("--safebrowsing-disable-auto-update")
+        options.add_argument("--disable-ipc-flooding-protection")
+        
+        # Window and display settings
         options.add_argument("--window-size=1920,1080")
         options.add_argument("--start-maximized")
         
-        # Anti-detection measures
-        options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        # Enhanced user agent (more realistic)
+        options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        
+        # Experimental options for better stealth
+        options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
         options.add_experimental_option('useAutomationExtension', False)
         
-        # User agent for better compatibility
-        options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        # Additional stealth preferences
+        prefs = {
+            "profile.default_content_setting_values.notifications": 2,
+            "profile.default_content_settings.popups": 0,
+            "profile.managed_default_content_settings.images": 2,  # Disable images for speed
+            "profile.content_settings.exceptions.automatic_downloads.*.setting": 1
+        }
+        options.add_experimental_option("prefs", prefs)
         
         return options
     
@@ -239,8 +266,161 @@ class RobloxLoginDiagnostics:
         self.debug_data['errors_encountered'].append(error_data)
         logger.error(f"Error: {error_type} - {error_message}")
     
+    def handle_browser_verification(self, driver, max_wait_time=60):
+        """CRITICAL NEW FIX: Handle Cloudflare 'Verifying browser...' challenge"""
+        try:
+            self.log_step("browser_verification_check", "starting")
+            
+            # Detection strategies for browser verification
+            verification_indicators = [
+                # Text-based detection
+                ("xpath", "//text()[contains(., 'Verifying browser')]"),
+                ("xpath", "//*[contains(text(), 'Verifying browser')]"),
+                ("xpath", "//*[contains(text(), 'Checking your browser')]"),
+                ("xpath", "//*[contains(text(), 'Please wait')]"),
+                
+                # Common Cloudflare selectors
+                ("css", ".cf-browser-verification"),
+                ("css", ".cf-checking-browser"),
+                ("css", "#cf-spinner"),
+                ("css", ".cf-spinner"),
+                
+                # Generic loading/verification patterns
+                ("css", "[class*='verification']"),
+                ("css", "[class*='checking']"),
+                ("css", "[id*='verification']"),
+                ("css", "[id*='checking']"),
+                
+                # Look for modals or overlays
+                ("css", "div[style*='position: fixed']"),
+                ("css", ".modal[style*='display: block']"),
+                ("css", ".overlay:not([style*='display: none'])")
+            ]
+            
+            verification_detected = False
+            verification_element = None
+            
+            # Check if verification challenge is present
+            for strategy_type, selector in verification_indicators:
+                try:
+                    elements = []
+                    
+                    if strategy_type == "xpath":
+                        elements = driver.find_elements(By.XPATH, selector)
+                    else:  # css
+                        if ":not(" in selector:
+                            # Handle complex CSS selectors
+                            elements = driver.find_elements(By.CSS_SELECTOR, selector.split(":not(")[0])
+                            # Filter out hidden elements
+                            elements = [el for el in elements if el.is_displayed()]
+                        else:
+                            elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                    
+                    for element in elements:
+                        if element.is_displayed():
+                            verification_detected = True
+                            verification_element = element
+                            self.log_step("browser_verification_detected", "found", {
+                                "selector": selector,
+                                "element_text": element.text[:100] if hasattr(element, 'text') else '',
+                                "strategy": strategy_type
+                            })
+                            break
+                    
+                    if verification_detected:
+                        break
+                        
+                except Exception as e:
+                    continue
+            
+            if not verification_detected:
+                self.log_step("browser_verification_check", "none_found")
+                return True
+            
+            # Browser verification detected - wait for it to complete
+            self.capture_screenshot(driver, "browser_verification_detected")
+            
+            self.log_step("browser_verification_wait", "starting", {
+                "max_wait_time": max_wait_time,
+                "check_interval": 2
+            })
+            
+            start_time = time.time()
+            check_interval = 2
+            
+            while time.time() - start_time < max_wait_time:
+                try:
+                    # Check if verification is still present
+                    still_verifying = False
+                    
+                    # Re-check all indicators
+                    for strategy_type, selector in verification_indicators:
+                        try:
+                            elements = []
+                            
+                            if strategy_type == "xpath":
+                                elements = driver.find_elements(By.XPATH, selector)
+                            else:
+                                elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                            
+                            if any(el.is_displayed() for el in elements):
+                                still_verifying = True
+                                break
+                                
+                        except:
+                            continue
+                    
+                    if not still_verifying:
+                        # Check if we're back to normal page
+                        current_url = driver.current_url
+                        page_source = driver.page_source.lower()
+                        
+                        # Look for signs verification completed
+                        if ("login" in current_url.lower() and 
+                            "verifying" not in page_source and 
+                            "checking" not in page_source):
+                            
+                            elapsed_time = time.time() - start_time
+                            self.log_step("browser_verification_wait", "completed", {
+                                "time_elapsed": round(elapsed_time, 2),
+                                "final_url": current_url
+                            })
+                            self.capture_screenshot(driver, "browser_verification_completed")
+                            return True
+                    
+                    # Add random delay to appear more human
+                    time.sleep(check_interval + random.uniform(0.5, 1.5))
+                    
+                    # Log progress every 10 seconds
+                    elapsed = time.time() - start_time
+                    if elapsed % 10 < check_interval:
+                        self.log_step("browser_verification_progress", "waiting", {
+                            "elapsed_seconds": round(elapsed, 1),
+                            "remaining_seconds": round(max_wait_time - elapsed, 1)
+                        })
+                    
+                except Exception as e:
+                    logger.warning(f"Error during verification wait: {e}")
+                    time.sleep(2)
+                    continue
+            
+            # Timeout reached
+            self.log_step("browser_verification_wait", "timeout", {
+                "timeout_seconds": max_wait_time,
+                "final_url": driver.current_url
+            })
+            self.capture_screenshot(driver, "browser_verification_timeout")
+            
+            # Try to proceed anyway - sometimes verification completes but indicators remain
+            return False
+            
+        except Exception as e:
+            self.log_error("browser_verification_handling", f"Error handling browser verification: {e}")
+            self.capture_screenshot(driver, "browser_verification_error")
+            return False
+    
     def handle_cookie_consent(self, driver):
-        """CRITICAL FIX: Handle Roblox cookie consent banner"""
+        """Handle Roblox cookie consent banner"""
         try:
             self.log_step("cookie_consent_check", "starting")
             
@@ -263,10 +443,6 @@ class RobloxLoginDiagnostics:
                 ("css", "button[aria-label*='cookie']"),
                 ("css", "button[aria-label*='Accept']"),
                 ("css", "button[aria-label*='Decline']"),
-                
-                # Strategy 4: General button search
-                ("css", "button:contains('Accept')"),
-                ("css", "button:contains('Decline')"),
             ]
             
             button_found = False
@@ -278,13 +454,7 @@ class RobloxLoginDiagnostics:
                     if strategy_type == "xpath":
                         buttons = driver.find_elements(By.XPATH, selector)
                     else:  # css
-                        if ":contains(" in selector:
-                            # Convert CSS :contains to XPath
-                            text = selector.split(":contains('")[1].rstrip("')")
-                            xpath = f"//button[contains(text(), '{text}')]"
-                            buttons = driver.find_elements(By.XPATH, xpath)
-                        else:
-                            buttons = driver.find_elements(By.CSS_SELECTOR, selector)
+                        buttons = driver.find_elements(By.CSS_SELECTOR, selector)
                     
                     for button in buttons:
                         if button.is_displayed() and button.is_enabled():
@@ -337,7 +507,6 @@ class RobloxLoginDiagnostics:
             else:
                 # No cookie banner found - that's also fine
                 self.log_step("cookie_consent_check", "none_found", {"banner_present": False})
-                self.capture_screenshot(driver, "no_cookie_banner")
                 return True
                 
         except Exception as e:
@@ -373,7 +542,7 @@ class RobloxLoginDiagnostics:
             return False
     
     def run_full_diagnostic(self):
-        """COMPLETE login diagnostic workflow WITH cookie consent fix"""
+        """COMPLETE login diagnostic workflow WITH browser verification + cookie consent fix"""
         self.report_id = f"diagnostic_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
         driver = None
         
@@ -397,7 +566,7 @@ class RobloxLoginDiagnostics:
             
             self.log_step("selenium_connectivity_test", "success")
             
-            # Step 2: Initialize Selenium WebDriver
+            # Step 2: Initialize Selenium WebDriver with enhanced stealth
             self.log_step("selenium_init", "starting", {"grid_url": self.selenium_url})
             
             options = self.get_chrome_options()
@@ -407,28 +576,66 @@ class RobloxLoginDiagnostics:
             )
             
             # Configure timeouts
-            driver.set_page_load_timeout(30)
+            driver.set_page_load_timeout(60)  # Increased for verification challenges
             driver.implicitly_wait(10)
             
-            self.log_step("selenium_init", "success", {"browser": "Chrome", "version": "120"})
+            # Execute stealth JavaScript to hide automation indicators
+            stealth_js = """
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined,
+                });
+                
+                window.chrome = {
+                    runtime: {},
+                };
+                
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => [1, 2, 3, 4, 5],
+                });
+                
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['en-US', 'en'],
+                });
+            """
+            driver.execute_script(stealth_js)
+            
+            self.log_step("selenium_init", "success", {"browser": "Chrome", "version": "120", "stealth": True})
             self.capture_screenshot(driver, "selenium_initialized")
             
-            # Step 3: Navigate to Roblox
+            # Step 3: Navigate to Roblox with human-like behavior
             self.log_step("roblox_navigation", "starting")
+            
+            # Add random delay to appear more human
+            time.sleep(random.uniform(1, 3))
+            
             driver.get("https://www.roblox.com/login")
-            time.sleep(3)
+            
+            # Wait for initial page load
+            time.sleep(random.uniform(3, 5))
             
             self.log_step("roblox_navigation", "success", {"url": driver.current_url})
             self.capture_screenshot(driver, "roblox_login_page")
             self.capture_page_source(driver, "login_page_source")
             
-            # Step 4: CRITICAL FIX - Handle cookie consent FIRST!
+            # Step 4: Handle cookie consent FIRST!
             self.handle_cookie_consent(driver)
             
-            # Step 5: Analyze login form (after cookies handled)
+            # Step 5: CRITICAL NEW - Handle browser verification challenge
+            verification_handled = self.handle_browser_verification(driver, max_wait_time=90)
+            
+            if not verification_handled:
+                self.log_error("browser_verification", "Browser verification challenge timed out", {
+                    "recommendation": "Consider using residential proxy or different browser fingerprint"
+                })
+                # Continue anyway - sometimes verification completes but indicators remain
+            
+            # Step 6: Analyze login form (after all challenges handled)
             self.log_step("login_form_analysis", "starting")
             
             try:
+                # Add delay to ensure page is fully loaded
+                time.sleep(random.uniform(2, 4))
+                
                 # Use flexible selectors for form elements
                 username_field = None
                 password_field = None
@@ -503,7 +710,7 @@ class RobloxLoginDiagnostics:
                 self.log_error("form_analysis", f"Login form elements not found: {e}")
                 self.capture_screenshot(driver, "login_form_error")
                 
-            # Step 6: Attempt login (with cookie consent already handled)
+            # Step 7: Attempt login (with all challenges handled)
             self.log_step("login_attempt", "starting")
             
             try:
@@ -513,23 +720,32 @@ class RobloxLoginDiagnostics:
                 if not username_field or not password_field or not login_button:
                     raise ValueError("Required form elements not found")
                 
-                # Clear and fill username with delays
+                # Human-like typing with realistic delays
                 username_field.clear()
-                time.sleep(0.5)
-                username_field.send_keys(ALT_USERNAME)
-                time.sleep(1)
+                time.sleep(random.uniform(0.5, 1.0))
                 
-                # Clear and fill password with delays 
+                # Type username character by character with delays
+                for char in ALT_USERNAME:
+                    username_field.send_keys(char)
+                    time.sleep(random.uniform(0.1, 0.3))
+                
+                time.sleep(random.uniform(0.5, 1.5))
+                
+                # Type password character by character with delays
                 password_field.clear()
-                time.sleep(0.5)
-                password_field.send_keys(ALT_PASSWORD)
-                time.sleep(1)
+                time.sleep(random.uniform(0.5, 1.0))
+                
+                for char in ALT_PASSWORD:
+                    password_field.send_keys(char)
+                    time.sleep(random.uniform(0.1, 0.3))
+                
+                time.sleep(random.uniform(1.0, 2.0))
                 
                 self.capture_screenshot(driver, "credentials_entered")
                 
                 # Scroll to login button and ensure it's visible
                 driver.execute_script("arguments[0].scrollIntoView(true);", login_button)
-                time.sleep(0.5)
+                time.sleep(random.uniform(0.5, 1.0))
                 
                 # Attempt to click login button
                 try:
@@ -542,8 +758,8 @@ class RobloxLoginDiagnostics:
                 
                 self.capture_screenshot(driver, "login_button_clicked")
                 
-                # Wait for login processing
-                time.sleep(5)
+                # Wait for login processing with longer timeout
+                time.sleep(random.uniform(5, 8))
                 
                 # Check result
                 current_url = driver.current_url
@@ -567,6 +783,8 @@ class RobloxLoginDiagnostics:
                         failure_reason = "invalid_credentials"
                     elif any(keyword in page_source for keyword in ['locked', 'suspended', 'disabled']):
                         failure_reason = "account_locked"
+                    elif any(keyword in page_source for keyword in ['verifying', 'checking']):
+                        failure_reason = "browser_verification_persistent"
                     
                     self.log_step("login_attempt", "failed", {
                         "stayed_on_login": True,
@@ -579,7 +797,7 @@ class RobloxLoginDiagnostics:
                 self.log_error("login_execution", f"Login attempt failed: {e}")
                 self.capture_screenshot(driver, "login_execution_error")
             
-            # Step 7: Final analysis
+            # Step 8: Final analysis
             self.log_step("final_analysis", "starting")
             
             try:
@@ -624,16 +842,16 @@ class RobloxLoginDiagnostics:
             diagnosis = "SELENIUM_URL_RESOLUTION_FAILURE"
             recommended_actions = [
                 "Check Railway internal networking configuration",
-                "Verify standalone-chrome service is running on port 4444",
-                "Test external URL as fallback",
-                f"Attempted URLs: {', '.join(SELENIUM_GRID_URLS)}"
+                "Verify standalone-chrome service is running on port 4444"
             ]
-        elif any(error['type'] == 'selenium_connection' for error in self.debug_data['errors_encountered']):
-            diagnosis = "SELENIUM_CONNECTION_FAILURE"
+        elif any(error['type'] == 'browser_verification' for error in self.debug_data['errors_encountered']):
+            diagnosis = "BROWSER_VERIFICATION_TIMEOUT"
             recommended_actions = [
-                "Verify Railway service connectivity",
-                "Check standalone-chrome service status",
-                "Review Railway internal networking settings"
+                "Cloudflare browser verification challenge timed out",
+                "Consider using residential proxy with different IP",
+                "Try non-headless browser for manual verification",
+                "Implement CAPTCHA solving service integration",
+                "Add more realistic browser fingerprinting"
             ]
         elif any('password' in str(error).lower() for error in self.debug_data['errors_encountered']):
             diagnosis = "AUTHENTICATION_FAILURE"
@@ -642,32 +860,30 @@ class RobloxLoginDiagnostics:
                 "Check account status manually",
                 "Try manual login to confirm account status"
             ]
-        elif any('cookie' in str(step.get('step', '')).lower() for step in self.debug_data['steps_completed']):
-            # Check if cookie consent was handled but login still failed
-            cookie_handled = any(step.get('status') == 'success' and 'cookie' in step.get('step', '') for step in self.debug_data['steps_completed'])
-            if cookie_handled:
-                diagnosis = "POST_COOKIE_LOGIN_FAILURE"
+        else:
+            # Check if browser verification was detected in steps
+            browser_verification_detected = any(
+                'browser_verification' in step.get('step', '') 
+                for step in self.debug_data['steps_completed']
+            )
+            
+            if browser_verification_detected:
+                diagnosis = "BROWSER_VERIFICATION_CHALLENGE"
                 recommended_actions = [
-                    "Cookie consent handled successfully",
-                    "Check for CAPTCHA challenges in screenshots",
-                    "Verify account credentials manually",
-                    "Check for 2FA requirements"
+                    "Cloudflare detected automated browser",
+                    "Browser verification challenge appeared",
+                    "System waited for challenge completion",
+                    "Consider alternative automation approaches",
+                    "Review browser fingerprinting techniques"
                 ]
             else:
-                diagnosis = "COOKIE_CONSENT_HANDLING_FAILURE"
+                diagnosis = "GENERAL_LOGIN_FAILURE"
                 recommended_actions = [
-                    "Cookie consent banner may have changed",
-                    "Update cookie consent selectors",
-                    "Check Roblox login page layout changes"
+                    "Check for account suspension",
+                    "Verify credentials are correct",
+                    "Check for 2FA requirements",
+                    "Review screenshots for specific error messages"
                 ]
-        else:
-            diagnosis = "GENERAL_LOGIN_FAILURE"
-            recommended_actions = [
-                "Check for account suspension",
-                "Verify credentials are correct",
-                "Check for 2FA requirements",
-                "Review screenshots for specific error messages"
-            ]
         
         report = {
             'report_id': self.report_id,
@@ -687,7 +903,9 @@ class RobloxLoginDiagnostics:
                 'username_tested': ALT_USERNAME,
                 'browser': "Chrome/120.0.0.0",
                 'railway_environment': True,
-                'cookie_consent_handling': True
+                'cookie_consent_handling': True,
+                'browser_verification_handling': True,
+                'stealth_mode': True
             },
             'detailed_steps': self.debug_data['steps_completed'],
             'errors_log': self.debug_data['errors_encountered'],
@@ -701,7 +919,7 @@ class RobloxLoginDiagnostics:
 
 @app.route('/status', methods=['GET'])
 def health_check():
-    """Health check with Selenium Grid testing (port 4444)"""
+    """Health check with Selenium Grid testing"""
     
     # Test all Selenium URLs and return detailed status
     selenium_status = "failed"
@@ -748,14 +966,14 @@ def health_check():
         'selenium_details': selenium_details,
         'selenium_url': working_url,
         'environment': 'railway',
-        'version': '5.0-cookie-consent-fix'
+        'version': '6.0-browser-verification-fix'
     })
 
 @app.route('/trigger-diagnostic', methods=['POST'])
 def trigger_diagnostic():
-    """Trigger diagnostic with cookie consent handling"""
+    """Trigger diagnostic with browser verification + cookie consent handling"""
     try:
-        logger.info("Starting diagnostic trigger (with cookie consent fix)")
+        logger.info("Starting diagnostic trigger (with browser verification + cookie consent fix)")
         
         # Validate environment
         if not ALT_PASSWORD:
@@ -808,11 +1026,18 @@ def trigger_diagnostic():
         
         return jsonify({
             'success': True,
-            'message': 'Diagnostic started (with cookie consent handling)',
+            'message': 'Diagnostic started (with browser verification + cookie consent handling)',
             'selenium_url': working_url,
-            'estimated_duration': '60-120 seconds',
+            'estimated_duration': '90-180 seconds',
             'check_results_at': '/results',
-            'features': ['cookie_consent_handling', 'enhanced_error_detection', 'multiple_selectors']
+            'features': [
+                'cookie_consent_handling', 
+                'browser_verification_handling',
+                'cloudflare_challenge_support',
+                'enhanced_stealth_mode',
+                'human_like_typing',
+                'multiple_selectors'
+            ]
         })
         
     except Exception as e:
@@ -897,7 +1122,7 @@ def internal_error(error):
 
 # Main application
 if __name__ == '__main__':
-    logger.info("Starting Railway Flask Server (Cookie Consent Fix)")
+    logger.info("Starting Railway Flask Server (Browser Verification + Cookie Consent Fix)")
     logger.info(f"Testing Selenium URLs: {SELENIUM_GRID_URLS}")
     
     # Test Selenium connection on startup

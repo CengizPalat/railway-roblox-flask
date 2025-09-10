@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-RAILWAY FLASK SERVER - FINAL VERSION
+RAILWAY FLASK SERVER - COMPLETE WITH COOKIE CONSENT FIX
 File: main.py
-FIXED: Uses port 4444 for Selenium Grid with multi-URL fallback
+FIXED: Handles Roblox cookie consent banner that blocks login attempts
 """
 
 import os
@@ -48,7 +48,7 @@ ALT_USERNAME = os.getenv('ALT_ROBLOX_USERNAME', 'ByddyY8rPao2124')
 ALT_PASSWORD = os.getenv('ALT_ROBLOX_PASSWORD')
 SPARKEDHOSTING_API = os.getenv('SPARKEDHOSTING_API_URL', 'https://roblox.sparked.network/api')
 
-# FINAL: Selenium Grid URLs with PORT 4444 (your new configuration)
+# Selenium Grid URLs with PORT 4444
 SELENIUM_GRID_URLS = [
     # Option 1: Simple service name (Railway's preferred internal networking)
     'http://standalone-chrome:4444/wd/hub',
@@ -76,11 +76,11 @@ def find_working_selenium_url():
     if WORKING_SELENIUM_URL:
         return WORKING_SELENIUM_URL
     
-    logger.info("🔍 Testing Selenium Grid URLs (port 4444)...")
+    logger.info("Testing Selenium Grid URLs (port 4444)...")
     
     for i, url in enumerate(SELENIUM_GRID_URLS):
         try:
-            logger.info(f"🔗 Testing URL {i+1}/{len(SELENIUM_GRID_URLS)}: {url}")
+            logger.info(f"Testing URL {i+1}/{len(SELENIUM_GRID_URLS)}: {url}")
             
             # Test status endpoint first
             status_url = url.replace('/wd/hub', '/status')
@@ -89,24 +89,24 @@ def find_working_selenium_url():
             if response.status_code == 200:
                 status_data = response.json()
                 if status_data.get('value', {}).get('ready'):
-                    logger.info(f"✅ Found working Selenium URL: {url}")
+                    logger.info(f"Found working Selenium URL: {url}")
                     WORKING_SELENIUM_URL = url
                     return url
                 else:
-                    logger.warning(f"⚠️ URL {url} responded but not ready")
+                    logger.warning(f"URL {url} responded but not ready")
             else:
-                logger.warning(f"⚠️ URL {url} returned HTTP {response.status_code}")
+                logger.warning(f"URL {url} returned HTTP {response.status_code}")
                 
         except Exception as e:
-            logger.warning(f"❌ URL {url} failed: {str(e)[:100]}")
+            logger.warning(f"URL {url} failed: {str(e)[:100]}")
             continue
     
     # If no status endpoint works, try direct WebDriver connection
-    logger.info("🔄 Status endpoints failed, trying direct WebDriver connections...")
+    logger.info("Status endpoints failed, trying direct WebDriver connections...")
     
     for i, url in enumerate(SELENIUM_GRID_URLS):
         try:
-            logger.info(f"🔗 Direct test {i+1}/{len(SELENIUM_GRID_URLS)}: {url}")
+            logger.info(f"Direct test {i+1}/{len(SELENIUM_GRID_URLS)}: {url}")
             
             options = Options()
             options.add_argument("--no-sandbox")
@@ -122,19 +122,19 @@ def find_working_selenium_url():
             driver.get("https://httpbin.org/ip")
             driver.quit()
             
-            logger.info(f"✅ Found working Selenium URL via WebDriver: {url}")
+            logger.info(f"Found working Selenium URL via WebDriver: {url}")
             WORKING_SELENIUM_URL = url
             return url
             
         except Exception as e:
-            logger.warning(f"❌ Direct WebDriver test failed for {url}: {str(e)[:100]}")
+            logger.warning(f"Direct WebDriver test failed for {url}: {str(e)[:100]}")
             continue
     
-    logger.error("❌ No working Selenium Grid URL found!")
+    logger.error("No working Selenium Grid URL found!")
     return None
 
 class RobloxLoginDiagnostics:
-    """Advanced Roblox login diagnostics with Railway integration"""
+    """Advanced Roblox login diagnostics with Cookie Consent Fix"""
     
     def __init__(self):
         self.report_id = None
@@ -193,10 +193,10 @@ class RobloxLoginDiagnostics:
                 'title': driver.title
             }
             self.debug_data['screenshots'].append(screenshot_info)
-            logger.info(f"📸 Screenshot captured: {step_name}")
+            logger.info(f"Screenshot captured: {step_name}")
             return True
         except Exception as e:
-            logger.error(f"❌ Screenshot failed for {step_name}: {e}")
+            logger.error(f"Screenshot failed for {step_name}: {e}")
             return False
     
     def capture_page_source(self, driver, step_name):
@@ -211,10 +211,10 @@ class RobloxLoginDiagnostics:
                 'url': driver.current_url
             }
             self.debug_data['page_sources'].append(source_info)
-            logger.info(f"📄 Page source captured: {step_name}")
+            logger.info(f"Page source captured: {step_name}")
             return True
         except Exception as e:
-            logger.error(f"❌ Page source capture failed for {step_name}: {e}")
+            logger.error(f"Page source capture failed for {step_name}: {e}")
             return False
     
     def log_step(self, step_name, status, details=None):
@@ -226,7 +226,7 @@ class RobloxLoginDiagnostics:
             'details': details or {}
         }
         self.debug_data['steps_completed'].append(step_data)
-        logger.info(f"🔵 Step: {step_name} - {status}")
+        logger.info(f"Step: {step_name} - {status}")
     
     def log_error(self, error_type, error_message, details=None):
         """Enhanced error logging"""
@@ -237,15 +237,121 @@ class RobloxLoginDiagnostics:
             'details': details or {}
         }
         self.debug_data['errors_encountered'].append(error_data)
-        logger.error(f"❌ Error: {error_type} - {error_message}")
+        logger.error(f"Error: {error_type} - {error_message}")
+    
+    def handle_cookie_consent(self, driver):
+        """CRITICAL FIX: Handle Roblox cookie consent banner"""
+        try:
+            self.log_step("cookie_consent_check", "starting")
+            
+            # Wait a moment for the banner to appear
+            time.sleep(2)
+            
+            # Look for cookie consent buttons with multiple strategies
+            cookie_strategies = [
+                # Strategy 1: Direct text search
+                ("xpath", "//button[contains(text(), 'Accept All')]"),
+                ("xpath", "//button[contains(text(), 'Decline All')]"),
+                
+                # Strategy 2: Common CSS selectors
+                ("css", "button[data-testid='accept-all']"),
+                ("css", "button[data-testid='decline-all']"),
+                ("css", ".cookie-consent button"),
+                ("css", "#cookie-consent button"),
+                
+                # Strategy 3: Aria labels
+                ("css", "button[aria-label*='cookie']"),
+                ("css", "button[aria-label*='Accept']"),
+                ("css", "button[aria-label*='Decline']"),
+                
+                # Strategy 4: General button search
+                ("css", "button:contains('Accept')"),
+                ("css", "button:contains('Decline')"),
+            ]
+            
+            button_found = False
+            
+            for strategy_type, selector in cookie_strategies:
+                try:
+                    buttons = []
+                    
+                    if strategy_type == "xpath":
+                        buttons = driver.find_elements(By.XPATH, selector)
+                    else:  # css
+                        if ":contains(" in selector:
+                            # Convert CSS :contains to XPath
+                            text = selector.split(":contains('")[1].rstrip("')")
+                            xpath = f"//button[contains(text(), '{text}')]"
+                            buttons = driver.find_elements(By.XPATH, xpath)
+                        else:
+                            buttons = driver.find_elements(By.CSS_SELECTOR, selector)
+                    
+                    for button in buttons:
+                        if button.is_displayed() and button.is_enabled():
+                            try:
+                                # Scroll to button first
+                                driver.execute_script("arguments[0].scrollIntoView(true);", button)
+                                time.sleep(0.5)
+                                
+                                # Get button info for logging
+                                button_text = button.text or button.get_attribute('aria-label') or 'Cookie Button'
+                                
+                                # Try regular click first
+                                try:
+                                    button.click()
+                                    self.log_step("cookie_consent_click", "success", {
+                                        "button_text": button_text,
+                                        "method": "regular_click",
+                                        "selector": selector
+                                    })
+                                    button_found = True
+                                    break
+                                except Exception:
+                                    # Try JavaScript click as fallback
+                                    driver.execute_script("arguments[0].click();", button)
+                                    self.log_step("cookie_consent_click", "success_js", {
+                                        "button_text": button_text,
+                                        "method": "javascript_click", 
+                                        "selector": selector
+                                    })
+                                    button_found = True
+                                    break
+                                    
+                            except Exception as click_error:
+                                logger.warning(f"Failed to click button: {click_error}")
+                                continue
+                    
+                    if button_found:
+                        break
+                        
+                except Exception as e:
+                    logger.warning(f"Strategy {strategy_type} with selector {selector} failed: {e}")
+                    continue
+            
+            if button_found:
+                # Wait for banner to disappear
+                time.sleep(2)
+                self.capture_screenshot(driver, "cookie_consent_handled")
+                self.log_step("cookie_consent_check", "success", {"banner_dismissed": True})
+                return True
+            else:
+                # No cookie banner found - that's also fine
+                self.log_step("cookie_consent_check", "none_found", {"banner_present": False})
+                self.capture_screenshot(driver, "no_cookie_banner")
+                return True
+                
+        except Exception as e:
+            self.log_error("cookie_consent_handling", f"Error handling cookies: {e}")
+            self.capture_screenshot(driver, "cookie_consent_error")
+            return False
     
     def test_selenium_connection(self):
         """Test Selenium Grid connection with the working URL"""
         if not self.selenium_url:
-            logger.error("❌ No working Selenium URL available")
+            logger.error("No working Selenium URL available")
             return False
             
-        logger.info(f"🔍 Testing Selenium connection to: {self.selenium_url}")
+        logger.info(f"Testing Selenium connection to: {self.selenium_url}")
         
         try:
             options = self.get_chrome_options()
@@ -259,15 +365,15 @@ class RobloxLoginDiagnostics:
             driver.get("https://httpbin.org/ip")
             driver.quit()
             
-            logger.info("✅ Selenium connection test successful")
+            logger.info("Selenium connection test successful")
             return True
             
         except Exception as e:
-            logger.error(f"❌ Selenium connection test failed: {e}")
+            logger.error(f"Selenium connection test failed: {e}")
             return False
     
     def run_full_diagnostic(self):
-        """Complete login diagnostic workflow"""
+        """COMPLETE login diagnostic workflow WITH cookie consent fix"""
         self.report_id = f"diagnostic_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
         driver = None
         
@@ -316,13 +422,71 @@ class RobloxLoginDiagnostics:
             self.capture_screenshot(driver, "roblox_login_page")
             self.capture_page_source(driver, "login_page_source")
             
-            # Step 4: Analyze login form
+            # Step 4: CRITICAL FIX - Handle cookie consent FIRST!
+            self.handle_cookie_consent(driver)
+            
+            # Step 5: Analyze login form (after cookies handled)
             self.log_step("login_form_analysis", "starting")
             
             try:
-                username_field = driver.find_element(By.ID, "login-username")
-                password_field = driver.find_element(By.ID, "login-password")
-                login_button = driver.find_element(By.ID, "login-button")
+                # Use flexible selectors for form elements
+                username_field = None
+                password_field = None
+                login_button = None
+                
+                # Find username field with multiple selectors
+                username_selectors = [
+                    "#login-username",
+                    "input[placeholder*='Username']",
+                    "input[name='username']", 
+                    "input[type='text']"
+                ]
+                
+                for selector in username_selectors:
+                    try:
+                        username_field = driver.find_element(By.CSS_SELECTOR, selector)
+                        if username_field.is_displayed():
+                            break
+                    except:
+                        continue
+                
+                # Find password field with multiple selectors  
+                password_selectors = [
+                    "#login-password",
+                    "input[placeholder*='Password']",
+                    "input[name='password']",
+                    "input[type='password']"
+                ]
+                
+                for selector in password_selectors:
+                    try:
+                        password_field = driver.find_element(By.CSS_SELECTOR, selector)
+                        if password_field.is_displayed():
+                            break
+                    except:
+                        continue
+                
+                # Find login button with multiple selectors
+                login_selectors = [
+                    "#login-button",
+                    "button[type='submit']",
+                    "input[type='submit']"
+                ]
+                
+                for selector in login_selectors:
+                    try:
+                        login_button = driver.find_element(By.CSS_SELECTOR, selector)
+                        if login_button.is_displayed():
+                            break
+                    except:
+                        continue
+                
+                # Also try XPath for "Log In" text
+                if not login_button:
+                    try:
+                        login_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Log In')]")
+                    except:
+                        pass
                 
                 form_analysis = {
                     "username_field_found": username_field is not None,
@@ -339,33 +503,75 @@ class RobloxLoginDiagnostics:
                 self.log_error("form_analysis", f"Login form elements not found: {e}")
                 self.capture_screenshot(driver, "login_form_error")
                 
-            # Step 5: Attempt login
+            # Step 6: Attempt login (with cookie consent already handled)
             self.log_step("login_attempt", "starting")
             
             try:
                 if not ALT_PASSWORD:
                     raise ValueError("ALT_ROBLOX_PASSWORD not configured")
                 
+                if not username_field or not password_field or not login_button:
+                    raise ValueError("Required form elements not found")
+                
+                # Clear and fill username with delays
                 username_field.clear()
+                time.sleep(0.5)
                 username_field.send_keys(ALT_USERNAME)
                 time.sleep(1)
                 
+                # Clear and fill password with delays 
                 password_field.clear()
+                time.sleep(0.5)
                 password_field.send_keys(ALT_PASSWORD)
                 time.sleep(1)
                 
                 self.capture_screenshot(driver, "credentials_entered")
                 
-                login_button.click()
+                # Scroll to login button and ensure it's visible
+                driver.execute_script("arguments[0].scrollIntoView(true);", login_button)
+                time.sleep(0.5)
+                
+                # Attempt to click login button
+                try:
+                    login_button.click()
+                    self.log_step("login_button_click", "success", {"method": "regular_click"})
+                except Exception as click_error:
+                    # Try JavaScript click as fallback
+                    driver.execute_script("arguments[0].click();", login_button)
+                    self.log_step("login_button_click", "success_js", {"method": "javascript_click"})
+                
+                self.capture_screenshot(driver, "login_button_clicked")
+                
+                # Wait for login processing
                 time.sleep(5)
                 
                 # Check result
                 current_url = driver.current_url
-                if "login" not in current_url.lower():
+                page_source = driver.page_source.lower()
+                
+                # Success indicators
+                if any(indicator in current_url.lower() for indicator in ['home', 'dashboard', 'profile']):
+                    self.log_step("login_attempt", "success", {"redirect_url": current_url})
+                    self.debug_data['success'] = True
+                elif "login" not in current_url.lower():
                     self.log_step("login_attempt", "success", {"redirect_url": current_url})
                     self.debug_data['success'] = True
                 else:
-                    self.log_step("login_attempt", "failed", {"stayed_on_login": True})
+                    # Analyze failure reason
+                    failure_reason = "unknown"
+                    if any(keyword in page_source for keyword in ['captcha', 'recaptcha', 'verify']):
+                        failure_reason = "captcha_required"
+                    elif any(keyword in page_source for keyword in ['two-factor', '2fa', 'verification']):
+                        failure_reason = "2fa_required"
+                    elif any(keyword in page_source for keyword in ['incorrect', 'invalid', 'wrong']):
+                        failure_reason = "invalid_credentials"
+                    elif any(keyword in page_source for keyword in ['locked', 'suspended', 'disabled']):
+                        failure_reason = "account_locked"
+                    
+                    self.log_step("login_attempt", "failed", {
+                        "stayed_on_login": True,
+                        "failure_reason": failure_reason
+                    })
                 
                 self.capture_screenshot(driver, "login_attempt_result")
                 
@@ -373,7 +579,7 @@ class RobloxLoginDiagnostics:
                 self.log_error("login_execution", f"Login attempt failed: {e}")
                 self.capture_screenshot(driver, "login_execution_error")
             
-            # Step 6: Final analysis
+            # Step 7: Final analysis
             self.log_step("final_analysis", "starting")
             
             try:
@@ -398,7 +604,7 @@ class RobloxLoginDiagnostics:
             if driver:
                 try:
                     driver.quit()
-                    logger.info("🔄 WebDriver cleaned up")
+                    logger.info("WebDriver cleaned up")
                 except:
                     pass
         
@@ -436,12 +642,31 @@ class RobloxLoginDiagnostics:
                 "Check account status manually",
                 "Try manual login to confirm account status"
             ]
+        elif any('cookie' in str(step.get('step', '')).lower() for step in self.debug_data['steps_completed']):
+            # Check if cookie consent was handled but login still failed
+            cookie_handled = any(step.get('status') == 'success' and 'cookie' in step.get('step', '') for step in self.debug_data['steps_completed'])
+            if cookie_handled:
+                diagnosis = "POST_COOKIE_LOGIN_FAILURE"
+                recommended_actions = [
+                    "Cookie consent handled successfully",
+                    "Check for CAPTCHA challenges in screenshots",
+                    "Verify account credentials manually",
+                    "Check for 2FA requirements"
+                ]
+            else:
+                diagnosis = "COOKIE_CONSENT_HANDLING_FAILURE"
+                recommended_actions = [
+                    "Cookie consent banner may have changed",
+                    "Update cookie consent selectors",
+                    "Check Roblox login page layout changes"
+                ]
         else:
             diagnosis = "GENERAL_LOGIN_FAILURE"
             recommended_actions = [
                 "Check for account suspension",
                 "Verify credentials are correct",
-                "Check for 2FA requirements"
+                "Check for 2FA requirements",
+                "Review screenshots for specific error messages"
             ]
         
         report = {
@@ -461,7 +686,8 @@ class RobloxLoginDiagnostics:
                 'working_url_found': self.selenium_url is not None,
                 'username_tested': ALT_USERNAME,
                 'browser': "Chrome/120.0.0.0",
-                'railway_environment': True
+                'railway_environment': True,
+                'cookie_consent_handling': True
             },
             'detailed_steps': self.debug_data['steps_completed'],
             'errors_log': self.debug_data['errors_encountered'],
@@ -522,14 +748,14 @@ def health_check():
         'selenium_details': selenium_details,
         'selenium_url': working_url,
         'environment': 'railway',
-        'version': '4.0-port-4444-final'
+        'version': '5.0-cookie-consent-fix'
     })
 
 @app.route('/trigger-diagnostic', methods=['POST'])
 def trigger_diagnostic():
-    """Trigger diagnostic with URL resolution check"""
+    """Trigger diagnostic with cookie consent handling"""
     try:
-        logger.info("🚀 Starting diagnostic trigger (port 4444)")
+        logger.info("Starting diagnostic trigger (with cookie consent fix)")
         
         # Validate environment
         if not ALT_PASSWORD:
@@ -566,14 +792,14 @@ def trigger_diagnostic():
                         timeout=30
                     )
                     if upload_response.status_code == 200:
-                        logger.info("✅ Report uploaded to SparkedHosting")
+                        logger.info("Report uploaded to SparkedHosting")
                     else:
-                        logger.error(f"❌ Upload failed: {upload_response.status_code}")
+                        logger.error(f"Upload failed: {upload_response.status_code}")
                 except Exception as upload_error:
-                    logger.error(f"❌ Upload error: {upload_error}")
+                    logger.error(f"Upload error: {upload_error}")
                 
             except Exception as e:
-                logger.error(f"❌ Diagnostic error: {e}")
+                logger.error(f"Diagnostic error: {e}")
         
         # Start diagnostic in background
         diagnostic_thread = threading.Thread(target=run_diagnostic)
@@ -582,14 +808,15 @@ def trigger_diagnostic():
         
         return jsonify({
             'success': True,
-            'message': 'Diagnostic started',
+            'message': 'Diagnostic started (with cookie consent handling)',
             'selenium_url': working_url,
             'estimated_duration': '60-120 seconds',
-            'check_results_at': '/results'
+            'check_results_at': '/results',
+            'features': ['cookie_consent_handling', 'enhanced_error_detection', 'multiple_selectors']
         })
         
     except Exception as e:
-        logger.error(f"❌ Trigger error: {e}")
+        logger.error(f"Trigger error: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -670,14 +897,14 @@ def internal_error(error):
 
 # Main application
 if __name__ == '__main__':
-    logger.info("🚀 Starting Railway Flask Server (Port 4444 Final)")
-    logger.info(f"🔗 Testing Selenium URLs: {SELENIUM_GRID_URLS}")
+    logger.info("Starting Railway Flask Server (Cookie Consent Fix)")
+    logger.info(f"Testing Selenium URLs: {SELENIUM_GRID_URLS}")
     
     # Test Selenium connection on startup
     working_url = find_working_selenium_url()
     if working_url:
-        logger.info(f"🎉 Found working Selenium URL: {working_url}")
+        logger.info(f"Found working Selenium URL: {working_url}")
     else:
-        logger.error("❌ No working Selenium URL found at startup")
+        logger.error("No working Selenium URL found at startup")
     
     app.run(host='0.0.0.0', port=PORT, debug=False)

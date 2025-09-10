@@ -1,672 +1,782 @@
-#!/usr/bin/env python3
-"""
-RAILWAY FLASK SERVER - UNDETECTED CHROMEDRIVER SOLUTION
-File: main.py
-PROVEN FIX: Uses undetected-chromedriver to bypass Cloudflare challenges
-Based on 2024-2025 forum solutions that work against current Cloudflare
-"""
-
+from flask import Flask, jsonify, request
 import os
 import time
 import json
+from datetime import datetime, timedelta
 import base64
-import threading
-import asyncio
-import random
-from datetime import datetime
-from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS
-
-# CRITICAL: Import undetected_chromedriver instead of regular selenium
-import undetected_chromedriver as uc
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, WebDriverException
-import requests
+from seleniumbase import SB
 import logging
+import traceback
+import sys
+from typing import Dict, Optional, Any
+import threading
+from contextlib import contextmanager
 
-# Configure logging
+# Configure comprehensive logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
 )
 logger = logging.getLogger(__name__)
 
-# Initialize Flask app
 app = Flask(__name__)
 
-# Configure CORS for zrdgames.com
-CORS(app, origins=[
-    "https://zrdgames.com",
-    "https://www.zrdgames.com",
-    "http://localhost:3000",
-    "http://localhost:8080"
-], methods=['GET', 'POST', 'OPTIONS'], allow_headers=['Content-Type'])
-
-# Configuration
-PORT = int(os.getenv('PORT', 8080))
-ALT_USERNAME = os.getenv('ALT_ROBLOX_USERNAME', 'ByddyY8rPao2124')
-ALT_PASSWORD = os.getenv('ALT_ROBLOX_PASSWORD')
-SPARKEDHOSTING_API = os.getenv('SPARKEDHOSTING_API_URL', 'https://roblox.sparked.network/api')
-
-# Store for diagnostic results
-diagnostic_results = {}
-
-class RobloxLoginDiagnostics:
-    """Advanced Roblox login diagnostics with UNDETECTED CHROMEDRIVER"""
-    
+class RobloxAnalytics:
     def __init__(self):
-        self.report_id = None
-        self.debug_data = {
-            'test_timestamp': datetime.utcnow().isoformat(),
-            'username': ALT_USERNAME,
-            'screenshots': [],
-            'page_sources': [],
-            'steps_completed': [],
-            'errors_encountered': [],
-            'success': False
-        }
-    
-    def capture_screenshot(self, driver, step_name):
-        """Enhanced screenshot capture with error handling"""
-        try:
-            screenshot_data = driver.get_screenshot_as_base64()
-            screenshot_info = {
-                'step': step_name,
-                'timestamp': datetime.utcnow().isoformat(),
-                'data': screenshot_data,
-                'url': driver.current_url,
-                'title': driver.title
-            }
-            self.debug_data['screenshots'].append(screenshot_info)
-            logger.info(f"Screenshot captured: {step_name}")
-            return True
-        except Exception as e:
-            logger.error(f"Screenshot failed for {step_name}: {e}")
-            return False
-    
-    def log_step(self, step_name, status, details=None):
-        """Enhanced step logging"""
-        step_data = {
-            'step': step_name,
-            'status': status,
-            'timestamp': datetime.utcnow().isoformat(),
-            'details': details or {}
-        }
-        self.debug_data['steps_completed'].append(step_data)
-        logger.info(f"Step: {step_name} - {status}")
-    
-    def log_error(self, error_type, error_message, details=None):
-        """Enhanced error logging"""
-        error_data = {
-            'type': error_type,
-            'timestamp': datetime.utcnow().isoformat(),
-            'message': str(error_message),
-            'details': details or {}
-        }
-        self.debug_data['errors_encountered'].append(error_data)
-        logger.error(f"Error: {error_type} - {error_message}")
-    
-    def handle_cookie_consent(self, driver):
-        """Handle Roblox cookie consent banner"""
-        try:
-            self.log_step("cookie_consent_check", "starting")
-            time.sleep(2)
-            
-            cookie_strategies = [
-                ("xpath", "//button[contains(text(), 'Accept All')]"),
-                ("xpath", "//button[contains(text(), 'Decline All')]"),
-                ("css", "button[data-testid='accept-all']"),
-                ("css", "button[data-testid='decline-all']"),
-            ]
-            
-            button_found = False
-            
-            for strategy_type, selector in cookie_strategies:
-                try:
-                    buttons = []
-                    
-                    if strategy_type == "xpath":
-                        buttons = driver.find_elements(By.XPATH, selector)
-                    else:
-                        buttons = driver.find_elements(By.CSS_SELECTOR, selector)
-                    
-                    for button in buttons:
-                        if button.is_displayed() and button.is_enabled():
-                            try:
-                                driver.execute_script("arguments[0].scrollIntoView(true);", button)
-                                time.sleep(0.5)
-                                
-                                button_text = button.text or 'Cookie Button'
-                                
-                                try:
-                                    button.click()
-                                    self.log_step("cookie_consent_click", "success", {
-                                        "button_text": button_text,
-                                        "method": "regular_click"
-                                    })
-                                    button_found = True
-                                    break
-                                except Exception:
-                                    driver.execute_script("arguments[0].click();", button)
-                                    self.log_step("cookie_consent_click", "success_js", {
-                                        "button_text": button_text,
-                                        "method": "javascript_click"
-                                    })
-                                    button_found = True
-                                    break
-                                    
-                            except Exception as click_error:
-                                continue
-                    
-                    if button_found:
-                        break
-                        
-                except Exception as e:
-                    continue
-            
-            if button_found:
-                time.sleep(2)
-                self.capture_screenshot(driver, "cookie_consent_handled")
-                self.log_step("cookie_consent_check", "success")
-                return True
-            else:
-                self.log_step("cookie_consent_check", "none_found")
-                return True
-                
-        except Exception as e:
-            self.log_error("cookie_consent_handling", f"Error handling cookies: {e}")
-            return False
-    
-    def wait_for_cloudflare_challenge(self, driver, max_wait_time=120):
-        """ENHANCED: Wait for Cloudflare challenge with undetected chromedriver"""
-        try:
-            self.log_step("cloudflare_challenge_wait", "starting", {"max_wait_time": max_wait_time})
-            
-            # Cloudflare challenge indicators
-            challenge_indicators = [
-                "verifying browser",
-                "checking your browser", 
-                "please wait",
-                "cloudflare",
-                "security check"
-            ]
-            
-            start_time = time.time()
-            
-            while time.time() - start_time < max_wait_time:
-                try:
-                    current_url = driver.current_url.lower()
-                    page_source = driver.page_source.lower()
-                    page_title = driver.title.lower()
-                    
-                    # Check if challenge is present
-                    challenge_detected = any(
-                        indicator in page_source or 
-                        indicator in page_title or
-                        indicator in current_url
-                        for indicator in challenge_indicators
-                    )
-                    
-                    if not challenge_detected:
-                        # Check if we're on the target page
-                        if "login" in current_url and "roblox.com" in current_url:
-                            elapsed_time = time.time() - start_time
-                            self.log_step("cloudflare_challenge_wait", "completed", {
-                                "time_elapsed": round(elapsed_time, 2),
-                                "final_url": driver.current_url
-                            })
-                            self.capture_screenshot(driver, "cloudflare_challenge_passed")
-                            return True
-                    
-                    # Add human-like delay
-                    time.sleep(random.uniform(2, 4))
-                    
-                    # Log progress every 10 seconds
-                    elapsed = time.time() - start_time
-                    if elapsed % 10 < 3:
-                        self.log_step("cloudflare_challenge_progress", "waiting", {
-                            "elapsed_seconds": round(elapsed, 1),
-                            "remaining_seconds": round(max_wait_time - elapsed, 1)
-                        })
-                        self.capture_screenshot(driver, f"cloudflare_wait_{int(elapsed//10)}")
-                    
-                except Exception as e:
-                    logger.warning(f"Error during challenge wait: {e}")
-                    time.sleep(2)
-                    continue
-            
-            # Timeout reached
-            self.log_step("cloudflare_challenge_wait", "timeout", {
-                "timeout_seconds": max_wait_time
-            })
-            self.capture_screenshot(driver, "cloudflare_challenge_timeout")
-            return False
-            
-        except Exception as e:
-            self.log_error("cloudflare_challenge_handling", f"Error handling challenge: {e}")
-            return False
-    
-    def run_full_diagnostic(self):
-        """COMPLETE diagnostic with UNDETECTED CHROMEDRIVER"""
-        self.report_id = f"diagnostic_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
-        driver = None
+        self.username = "ByddyY8rPao2124"
+        self.password = "VHAHnfR9GNuX4aABZWtD"
+        self.last_login = None
+        self.login_valid_hours = 2
+        self.session_data = {}
+        self.last_results = {}
         
-        try:
-            # Step 1: Initialize UNDETECTED ChromeDriver
-            self.log_step("undetected_chrome_init", "starting")
+    def get_comprehensive_chrome_options(self):
+        """Get comprehensive Chrome options optimized for Railway deployment and Cloudflare bypass"""
+        base_options = [
+            # Core stability options
+            "--no-sandbox",
+            "--disable-dev-shm-usage", 
+            "--disable-gpu",
+            "--disable-web-security",
+            "--disable-features=VizDisplayCompositor",
             
-            # CRITICAL: Use undetected_chromedriver instead of regular selenium
-            options = uc.ChromeOptions()
+            # Memory and performance optimization
+            "--memory-pressure-off",
+            "--max_old_space_size=4096",
+            "--disable-background-timer-throttling",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-renderer-backgrounding",
+            "--disable-field-trial-config",
+            "--disable-back-forward-cache",
+            "--disable-background-networking",
             
-            # Essential options for Railway/headless environment
-            options.add_argument("--no-sandbox")
-            options.add_argument("--disable-dev-shm-usage")
-            options.add_argument("--disable-gpu")
-            options.add_argument("--headless")  # Required for Railway
+            # Anti-detection options
+            "--disable-blink-features=AutomationControlled",
+            "--disable-automation",
+            "--disable-infobars",
+            "--disable-extensions-file-access-check",
+            "--disable-extensions-http-throttling",
+            "--disable-extensions-app-file-protocol",
             
-            # Additional stealth options (undetected_chromedriver handles most automatically)
-            options.add_argument("--window-size=1920,1080")
-            options.add_argument("--disable-extensions")
-            options.add_argument("--disable-plugins")
+            # Network and security
+            "--disable-sync",
+            "--disable-translate",
+            "--disable-ipc-flooding-protection",
+            "--disable-default-apps",
+            "--disable-component-extensions-with-background-pages",
+            "--disable-client-side-phishing-detection",
+            "--disable-hang-monitor",
+            "--disable-popup-blocking",
+            "--disable-prompt-on-repost",
+            "--disable-domain-reliability",
+            "--disable-component-update",
+            "--disable-background-downloads",
+            "--disable-add-to-shelf",
+            "--disable-office-editing-component-extension",
+            "--disable-file-system",
             
-            # Initialize undetected ChromeDriver
-            driver = uc.Chrome(
-                options=options,
-                headless=True,
-                use_subprocess=False,  # Important for Railway
-                version_main=None  # Auto-detect Chrome version
-            )
+            # Rendering optimizations
+            "--aggressive-cache-discard",
+            "--force-color-profile=srgb",
+            "--disable-threaded-animation",
+            "--disable-threaded-scrolling",
+            "--disable-partial-raster",
+            "--disable-skia-runtime-opts",
+            "--run-all-compositor-stages-before-draw",
+            "--disable-new-content-rendering-timeout",
+            "--disable-canvas-aa",
+            "--disable-2d-canvas-clip-aa",
+            "--disable-gl-drawing-for-tests",
+            "--enable-low-res-tiling",
+            "--disable-webgl",
+            "--disable-webgl2",
             
-            # Configure timeouts
-            driver.set_page_load_timeout(120)
-            driver.implicitly_wait(10)
-            
-            self.log_step("undetected_chrome_init", "success", {
-                "driver_type": "undetected_chromedriver",
-                "headless": True,
-                "version": "auto-detected"
-            })
-            self.capture_screenshot(driver, "undetected_chrome_initialized")
-            
-            # Step 2: Navigate to Roblox with human-like behavior
-            self.log_step("roblox_navigation", "starting")
-            
-            # Add random delay
-            time.sleep(random.uniform(2, 5))
-            
-            driver.get("https://www.roblox.com/login")
-            
-            # Wait for initial page load
-            time.sleep(random.uniform(3, 6))
-            
-            self.log_step("roblox_navigation", "success", {"url": driver.current_url})
-            self.capture_screenshot(driver, "roblox_login_page_reached")
-            
-            # Step 3: Handle cookie consent
-            self.handle_cookie_consent(driver)
-            
-            # Step 4: CRITICAL - Wait for Cloudflare challenge to complete
-            challenge_passed = self.wait_for_cloudflare_challenge(driver, max_wait_time=120)
-            
-            if not challenge_passed:
-                self.log_error("cloudflare_challenge", "Challenge did not complete within timeout")
-                # Continue anyway - undetected_chromedriver might have bypassed it
-            
-            # Step 5: Analyze login form
-            self.log_step("login_form_analysis", "starting")
-            
-            try:
-                # Add delay to ensure page is fully loaded
-                time.sleep(random.uniform(3, 5))
-                
-                # Find form elements with flexible selectors
-                username_field = None
-                password_field = None
-                login_button = None
-                
-                username_selectors = [
-                    "#login-username",
-                    "input[placeholder*='Username']",
-                    "input[name='username']", 
-                    "input[type='text']"
-                ]
-                
-                for selector in username_selectors:
-                    try:
-                        username_field = driver.find_element(By.CSS_SELECTOR, selector)
-                        if username_field.is_displayed():
-                            break
-                    except:
-                        continue
-                
-                password_selectors = [
-                    "#login-password",
-                    "input[placeholder*='Password']",
-                    "input[name='password']",
-                    "input[type='password']"
-                ]
-                
-                for selector in password_selectors:
-                    try:
-                        password_field = driver.find_element(By.CSS_SELECTOR, selector)
-                        if password_field.is_displayed():
-                            break
-                    except:
-                        continue
-                
-                login_selectors = [
-                    "#login-button",
-                    "button[type='submit']",
-                    "input[type='submit']"
-                ]
-                
-                for selector in login_selectors:
-                    try:
-                        login_button = driver.find_element(By.CSS_SELECTOR, selector)
-                        if login_button.is_displayed():
-                            break
-                    except:
-                        continue
-                
-                if not login_button:
-                    try:
-                        login_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Log In')]")
-                    except:
-                        pass
-                
-                form_analysis = {
-                    "username_field_found": username_field is not None,
-                    "password_field_found": password_field is not None,
-                    "login_button_found": login_button is not None,
-                    "page_title": driver.title,
-                    "current_url": driver.current_url
-                }
-                
-                self.log_step("login_form_analysis", "success", form_analysis)
-                self.capture_screenshot(driver, "login_form_analyzed")
-                
-            except Exception as e:
-                self.log_error("form_analysis", f"Login form elements not found: {e}")
-                self.capture_screenshot(driver, "login_form_error")
-                
-            # Step 6: Attempt login with human-like typing
-            self.log_step("login_attempt", "starting")
-            
-            try:
-                if not ALT_PASSWORD:
-                    raise ValueError("ALT_ROBLOX_PASSWORD not configured")
-                
-                if not username_field or not password_field or not login_button:
-                    raise ValueError("Required form elements not found")
-                
-                # Human-like typing with realistic delays
-                username_field.clear()
-                time.sleep(random.uniform(0.5, 1.0))
-                
-                # Type username character by character
-                for char in ALT_USERNAME:
-                    username_field.send_keys(char)
-                    time.sleep(random.uniform(0.1, 0.3))
-                
-                time.sleep(random.uniform(1.0, 2.0))
-                
-                # Type password character by character
-                password_field.clear()
-                time.sleep(random.uniform(0.5, 1.0))
-                
-                for char in ALT_PASSWORD:
-                    password_field.send_keys(char)
-                    time.sleep(random.uniform(0.1, 0.3))
-                
-                time.sleep(random.uniform(1.0, 2.0))
-                
-                self.capture_screenshot(driver, "credentials_entered")
-                
-                # Click login button
-                driver.execute_script("arguments[0].scrollIntoView(true);", login_button)
-                time.sleep(random.uniform(0.5, 1.0))
-                
-                try:
-                    login_button.click()
-                    self.log_step("login_button_click", "success", {"method": "regular_click"})
-                except Exception:
-                    driver.execute_script("arguments[0].click();", login_button)
-                    self.log_step("login_button_click", "success_js", {"method": "javascript_click"})
-                
-                self.capture_screenshot(driver, "login_button_clicked")
-                
-                # Wait for login processing
-                time.sleep(random.uniform(5, 8))
-                
-                # Check result
-                current_url = driver.current_url
-                page_source = driver.page_source.lower()
-                
-                # Success indicators
-                if any(indicator in current_url.lower() for indicator in ['home', 'dashboard', 'profile']):
-                    self.log_step("login_attempt", "success", {"redirect_url": current_url})
-                    self.debug_data['success'] = True
-                elif "login" not in current_url.lower():
-                    self.log_step("login_attempt", "success", {"redirect_url": current_url})
-                    self.debug_data['success'] = True
-                else:
-                    # Analyze failure reason
-                    failure_reason = "unknown"
-                    if any(keyword in page_source for keyword in ['captcha', 'recaptcha', 'verify']):
-                        failure_reason = "captcha_required"
-                    elif any(keyword in page_source for keyword in ['two-factor', '2fa', 'verification']):
-                        failure_reason = "2fa_required"
-                    elif any(keyword in page_source for keyword in ['incorrect', 'invalid', 'wrong']):
-                        failure_reason = "invalid_credentials"
-                    elif any(keyword in page_source for keyword in ['locked', 'suspended', 'disabled']):
-                        failure_reason = "account_locked"
-                    
-                    self.log_step("login_attempt", "failed", {
-                        "stayed_on_login": True,
-                        "failure_reason": failure_reason
-                    })
-                
-                self.capture_screenshot(driver, "login_attempt_result")
-                
-            except Exception as e:
-                self.log_error("login_execution", f"Login attempt failed: {e}")
-                self.capture_screenshot(driver, "login_execution_error")
-            
-            # Step 7: Final analysis
-            self.log_step("final_analysis", "starting")
-            
-            try:
-                final_state = {
-                    "current_url": driver.current_url,
-                    "page_title": driver.title,
-                    "login_success": self.debug_data['success'],
-                    "total_screenshots": len(self.debug_data['screenshots']),
-                    "total_errors": len(self.debug_data['errors_encountered']),
-                    "undetected_chromedriver": True
-                }
-                
-                self.log_step("final_analysis", "completed", final_state)
-                self.capture_screenshot(driver, "final_state")
-                
-            except Exception as e:
-                self.log_error("final_analysis", f"Final analysis failed: {e}")
-                
-        except Exception as e:
-            self.log_error("diagnostic_workflow", f"Critical diagnostic failure: {e}")
-            
-        finally:
-            if driver:
-                try:
-                    driver.quit()
-                    logger.info("Undetected ChromeDriver cleaned up")
-                except:
-                    pass
+            # Additional stealth options
+            "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "--accept-lang=en-US,en;q=0.9",
+            "--disable-logging",
+            "--disable-log-file",
+            "--silent"
+        ]
         
-        return self.generate_diagnostic_report()
-    
-    def generate_diagnostic_report(self):
-        """Generate comprehensive diagnostic report"""
-        total_steps = len(self.debug_data['steps_completed'])
-        total_errors = len(self.debug_data['errors_encountered'])
-        screenshots_captured = len(self.debug_data['screenshots'])
-        
-        # Enhanced diagnosis logic
-        if self.debug_data['success']:
-            diagnosis = "LOGIN_SUCCESS_WITH_UNDETECTED_CHROMEDRIVER"
-            recommended_actions = ["Monitor for consistency", "Undetected ChromeDriver working correctly"]
-        elif any('cloudflare' in str(step.get('step', '')).lower() for step in self.debug_data['steps_completed']):
-            cloudflare_passed = any(
-                step.get('status') == 'completed' and 'cloudflare' in step.get('step', '') 
-                for step in self.debug_data['steps_completed']
-            )
-            if cloudflare_passed:
-                diagnosis = "CLOUDFLARE_BYPASSED_BUT_LOGIN_FAILED"
-                recommended_actions = [
-                    "Undetected ChromeDriver successfully bypassed Cloudflare",
-                    "Check account credentials and status",
-                    "Look for CAPTCHA or 2FA requirements in screenshots"
-                ]
-            else:
-                diagnosis = "CLOUDFLARE_CHALLENGE_PERSISTENT"
-                recommended_actions = [
-                    "Cloudflare challenge detected by undetected ChromeDriver",
-                    "Try increasing wait time or using different IP",
-                    "Consider SeleniumBase as alternative",
-                    "May need non-headless mode for advanced challenges"
-                ]
+        # Railway-specific settings
+        if os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('PORT'):
+            logger.info("Applying Railway-specific Chrome options")
+            base_options.extend([
+                "--remote-debugging-port=9222",
+                "--headless=new",
+                "--window-size=1920,1080",
+                "--disable-extensions",
+                "--no-first-run",
+                "--disable-plugins",
+                "--disable-images",
+                "--disable-javascript-harmony-shipping",
+                "--disable-background-mode",
+                "--disable-background-networking",
+                "--disable-client-side-phishing-detection",
+                "--disable-default-apps",
+                "--disable-hang-monitor",
+                "--disable-popup-blocking",
+                "--disable-prompt-on-repost",
+                "--disable-sync",
+                "--disable-translate",
+                "--metrics-recording-only",
+                "--no-first-run",
+                "--safebrowsing-disable-auto-update",
+                "--enable-automation",
+                "--password-store=basic",
+                "--use-mock-keychain"
+            ])
         else:
-            diagnosis = "GENERAL_LOGIN_FAILURE_WITH_UNDETECTED_CHROMEDRIVER"
-            recommended_actions = [
-                "Undetected ChromeDriver initialized successfully",
-                "Check for specific error messages in screenshots",
-                "Verify account credentials and status"
+            logger.info("Applying local development Chrome options")
+            base_options.extend([
+                "--window-size=1920,1080"
+            ])
+            
+        return base_options
+
+    @contextmanager
+    def get_selenium_session(self):
+        """Context manager for SeleniumBase session with comprehensive error handling"""
+        sb = None
+        try:
+            chrome_options = self.get_comprehensive_chrome_options()
+            logger.info(f"Starting SeleniumBase with {len(chrome_options)} Chrome options")
+            
+            # Initialize SeleniumBase with UC mode and comprehensive options
+            sb = SB(
+                uc=True,  # Undetected Chrome mode for Cloudflare bypass
+                headless=True if (os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('PORT')) else False,
+                browser="chrome",
+                chromium_arg=" ".join(chrome_options),
+                page_load_strategy="eager",  # Faster page loading
+                timeout_multiplier=2.0,  # More generous timeouts for Railway
+                incognito=True,  # Fresh session each time
+                guest_mode=True  # Additional stealth
+            )
+            
+            sb.open_new_window()  # Fresh window
+            logger.info("SeleniumBase session started successfully")
+            yield sb
+            
+        except Exception as e:
+            logger.error(f"Failed to create SeleniumBase session: {str(e)}")
+            logger.error(traceback.format_exc())
+            raise
+        finally:
+            if sb:
+                try:
+                    sb.quit()
+                    logger.info("SeleniumBase session closed")
+                except:
+                    logger.warning("Error closing SeleniumBase session")
+
+    def test_cloudflare_bypass(self, sb) -> Dict[str, Any]:
+        """Test Cloudflare bypass capability with detailed diagnostics"""
+        try:
+            logger.info("Testing Cloudflare bypass...")
+            
+            # Test with Roblox main page
+            sb.get("https://www.roblox.com")
+            sb.sleep(8)  # Allow time for any challenges
+            
+            # Capture current state
+            current_url = sb.get_current_url()
+            page_title = sb.get_title()
+            page_source = sb.get_page_source()
+            
+            # Take diagnostic screenshot
+            screenshot_data = sb.get_screenshot_as_png()
+            screenshot_b64 = base64.b64encode(screenshot_data).decode()
+            
+            # Check for Cloudflare indicators
+            cloudflare_indicators = [
+                "checking your browser",
+                "cloudflare",
+                "please wait",
+                "verifying you are human",
+                "browser verification",
+                "challenge-platform",
+                "cf-browser-verification"
             ]
-        
-        report = {
-            'report_id': self.report_id,
-            'diagnostic_summary': {
-                'test_timestamp': self.debug_data['test_timestamp'],
-                'final_diagnosis': diagnosis,
-                'total_steps_completed': total_steps,
-                'total_errors_encountered': total_errors,
-                'screenshots_captured': screenshots_captured,
-                'login_success': self.debug_data['success'],
-                'recommended_actions': recommended_actions
-            },
-            'test_environment': {
-                'driver_type': 'undetected_chromedriver',
-                'username_tested': ALT_USERNAME,
-                'browser': "Undetected Chrome",
-                'railway_environment': True,
-                'cloudflare_bypass_attempted': True,
-                'human_like_behavior': True
-            },
-            'detailed_steps': self.debug_data['steps_completed'],
-            'errors_log': self.debug_data['errors_encountered'],
-            'screenshots': self.debug_data['screenshots'],
-            'page_sources': self.debug_data['page_sources']
+            
+            page_lower = page_source.lower()
+            detected_indicators = [indicator for indicator in cloudflare_indicators if indicator in page_lower]
+            
+            # Additional checks
+            has_roblox_content = any(term in page_lower for term in ["roblox", "sign up", "log in", "games"])
+            challenge_detected = len(detected_indicators) > 0
+            
+            return {
+                "success": True,
+                "cloudflare_bypass": not challenge_detected and has_roblox_content,
+                "current_url": current_url,
+                "page_title": page_title,
+                "detected_indicators": detected_indicators,
+                "has_roblox_content": has_roblox_content,
+                "screenshot": screenshot_b64,
+                "page_length": len(page_source),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Cloudflare bypass test error: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "traceback": traceback.format_exc(),
+                "timestamp": datetime.now().isoformat()
+            }
+
+    def handle_initial_page_load(self, sb, url: str) -> bool:
+        """Handle initial page load with Cloudflare detection and waiting"""
+        try:
+            logger.info(f"Loading page: {url}")
+            sb.get(url)
+            
+            # Initial wait
+            sb.sleep(5)
+            
+            # Check for Cloudflare challenge
+            page_source = sb.get_page_source().lower()
+            if any(indicator in page_source for indicator in ["checking your browser", "cloudflare", "please wait"]):
+                logger.info("Cloudflare challenge detected, waiting for bypass...")
+                
+                # Wait for challenge to complete (UC mode should handle this)
+                max_wait = 30
+                wait_interval = 2
+                waited = 0
+                
+                while waited < max_wait:
+                    sb.sleep(wait_interval)
+                    waited += wait_interval
+                    
+                    current_source = sb.get_page_source().lower()
+                    if not any(indicator in current_source for indicator in ["checking your browser", "cloudflare", "please wait"]):
+                        logger.info("Cloudflare challenge bypassed!")
+                        break
+                    
+                    logger.info(f"Still waiting for Cloudflare bypass... ({waited}s)")
+                
+                if waited >= max_wait:
+                    logger.warning("Cloudflare challenge may not have been bypassed within timeout")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Page load error: {str(e)}")
+            return False
+
+    def login_to_roblox(self, sb) -> Dict[str, Any]:
+        """Comprehensive Roblox login with detailed error handling"""
+        try:
+            logger.info("Starting Roblox login process...")
+            
+            # Navigate to login page
+            if not self.handle_initial_page_load(sb, "https://www.roblox.com/login"):
+                return {"success": False, "error": "Failed to load login page"}
+            
+            # Handle cookie consent if present
+            try:
+                if sb.is_element_present("button[aria-label='Accept All']", timeout=3):
+                    logger.info("Accepting cookie consent...")
+                    sb.click("button[aria-label='Accept All']")
+                    sb.sleep(2)
+            except Exception as e:
+                logger.info("No cookie consent dialog found or failed to handle")
+            
+            # Wait for login form to be available
+            login_form_selectors = [
+                "#login-username",
+                "input[placeholder*='Username']",
+                "input[name='username']"
+            ]
+            
+            username_field = None
+            for selector in login_form_selectors:
+                try:
+                    if sb.is_element_present(selector, timeout=5):
+                        username_field = selector
+                        break
+                except:
+                    continue
+            
+            if not username_field:
+                screenshot_data = sb.get_screenshot_as_png()
+                screenshot_b64 = base64.b64encode(screenshot_data).decode()
+                return {
+                    "success": False, 
+                    "error": "Username field not found",
+                    "screenshot": screenshot_b64,
+                    "current_url": sb.get_current_url(),
+                    "page_source_snippet": sb.get_page_source()[:1000]
+                }
+            
+            # Fill login credentials
+            logger.info("Filling login credentials...")
+            sb.type(username_field, self.username)
+            
+            # Find password field
+            password_selectors = [
+                "#login-password",
+                "input[placeholder*='Password']", 
+                "input[name='password']",
+                "input[type='password']"
+            ]
+            
+            password_field = None
+            for selector in password_selectors:
+                try:
+                    if sb.is_element_present(selector, timeout=3):
+                        password_field = selector
+                        break
+                except:
+                    continue
+            
+            if password_field:
+                sb.type(password_field, self.password)
+            else:
+                return {"success": False, "error": "Password field not found"}
+            
+            # Submit login
+            login_button_selectors = [
+                "#login-button",
+                "button[type='submit']",
+                "button[data-testid='login-button']",
+                ".btn-primary-md"
+            ]
+            
+            for selector in login_button_selectors:
+                try:
+                    if sb.is_element_present(selector, timeout=3):
+                        logger.info(f"Clicking login button: {selector}")
+                        sb.click(selector)
+                        break
+                except:
+                    continue
+            
+            # Wait for login processing
+            sb.sleep(8)
+            
+            # Check login result
+            current_url = sb.get_current_url()
+            logger.info(f"After login attempt, current URL: {current_url}")
+            
+            # Handle 2FA or verification if present
+            if "challenge" in current_url or "verification" in current_url or "two-step" in current_url:
+                logger.info("2FA/Verification challenge detected, waiting...")
+                
+                # Wait for manual verification or automatic solving
+                verification_wait = 45
+                sb.sleep(verification_wait)
+                current_url = sb.get_current_url()
+                logger.info(f"After verification wait, current URL: {current_url}")
+            
+            # Check for successful login indicators
+            success_indicators = [
+                "home" in current_url,
+                "dashboard" in current_url,
+                "/users/" in current_url,
+                "create.roblox.com" in current_url
+            ]
+            
+            if any(success_indicators):
+                logger.info("Login appears successful!")
+                self.last_login = datetime.now()
+                return {
+                    "success": True,
+                    "login_time": self.last_login.isoformat(),
+                    "final_url": current_url
+                }
+            
+            # Try navigating to creator dashboard to confirm access
+            logger.info("Attempting to navigate to creator dashboard...")
+            sb.get("https://create.roblox.com/")
+            sb.sleep(8)
+            
+            if "create.roblox.com" in sb.get_current_url():
+                logger.info("Successfully reached creator dashboard")
+                self.last_login = datetime.now()
+                return {
+                    "success": True,
+                    "login_time": self.last_login.isoformat(),
+                    "final_url": sb.get_current_url()
+                }
+            
+            # Login may have failed
+            screenshot_data = sb.get_screenshot_as_png()
+            screenshot_b64 = base64.b64encode(screenshot_data).decode()
+            
+            return {
+                "success": False,
+                "error": "Login verification failed - unexpected final URL",
+                "final_url": current_url,
+                "screenshot": screenshot_b64
+            }
+            
+        except Exception as e:
+            logger.error(f"Login error: {str(e)}")
+            screenshot_data = None
+            try:
+                screenshot_data = sb.get_screenshot_as_png()
+                screenshot_b64 = base64.b64encode(screenshot_data).decode()
+            except:
+                screenshot_b64 = None
+                
+            return {
+                "success": False,
+                "error": str(e),
+                "traceback": traceback.format_exc(),
+                "screenshot": screenshot_b64
+            }
+
+    def capture_qptr_data(self, sb, game_id: Optional[str] = None) -> Dict[str, Any]:
+        """Capture QPTR data from creator dashboard with comprehensive extraction"""
+        try:
+            # Determine analytics URL
+            if game_id:
+                analytics_url = f"https://create.roblox.com/dashboard/creations/experiences/{game_id}/analytics"
+                logger.info(f"Navigating to specific game analytics: {game_id}")
+            else:
+                analytics_url = "https://create.roblox.com/dashboard/creations"
+                logger.info("Navigating to general creations dashboard")
+                
+            # Navigate to analytics
+            if not self.handle_initial_page_load(sb, analytics_url):
+                return {"success": False, "error": "Failed to load analytics page"}
+            
+            # Wait for page to fully load
+            sb.sleep(10)
+            
+            # Take diagnostic screenshot
+            screenshot_data = sb.get_screenshot_as_png()
+            screenshot_b64 = base64.b64encode(screenshot_data).decode()
+            
+            # Extract QPTR and analytics data
+            qptr_data = {}
+            analytics_data = {}
+            
+            # Comprehensive selectors for different QPTR representations
+            qptr_selectors = [
+                # Direct QPTR selectors
+                "[data-testid*='qptr']",
+                "[data-testid*='playthrough']", 
+                "[data-testid*='play-through']",
+                "[data-testid*='retention']",
+                
+                # General metric selectors
+                ".metric-card",
+                ".analytics-metric",
+                "[class*='metric']",
+                "[class*='stat']",
+                ".dashboard-stat",
+                
+                # Percentage value selectors
+                "[class*='percentage']",
+                ".percent-value",
+                
+                # Text content selectors
+                "*:contains('%')",
+                "span:contains('%')",
+                "div:contains('%')"
+            ]
+            
+            for selector in qptr_selectors:
+                try:
+                    if sb.is_element_present(selector, timeout=3):
+                        elements = sb.find_elements(selector)
+                        for i, elem in enumerate(elements[:10]):  # Limit to first 10 matches
+                            try:
+                                text = elem.text.strip()
+                                if text and "%" in text:
+                                    # Check if this looks like QPTR data
+                                    text_lower = text.lower()
+                                    if any(keyword in text_lower for keyword in [
+                                        'play', 'through', 'retention', 'rate', 'qualified'
+                                    ]):
+                                        qptr_data[f"{selector}_{i}"] = text
+                                    elif text and len(text) < 50:  # Any percentage under 50 chars
+                                        analytics_data[f"{selector}_{i}"] = text
+                            except Exception as elem_error:
+                                logger.debug(f"Error extracting from element: {elem_error}")
+                                continue
+                except Exception as selector_error:
+                    logger.debug(f"Selector {selector} failed: {selector_error}")
+                    continue
+            
+            # Try to extract data from page source using regex
+            page_source = sb.get_page_source()
+            import re
+            
+            # Look for percentage patterns in source
+            percentage_patterns = [
+                r'(?:qptr|playthrough|retention).*?(\d+\.?\d*%)',
+                r'(\d+\.?\d*%)',  # Any percentage
+                r'"value":\s*"(\d+\.?\d*%)"',  # JSON value patterns
+                r'data-value="(\d+\.?\d*%)"'  # Data attribute patterns
+            ]
+            
+            source_extracted = {}
+            for i, pattern in enumerate(percentage_patterns):
+                matches = re.findall(pattern, page_source, re.IGNORECASE)
+                if matches:
+                    source_extracted[f"pattern_{i}"] = matches[:5]  # First 5 matches
+            
+            # Get current page info
+            current_url = sb.get_current_url()
+            page_title = sb.get_title()
+            
+            return {
+                "success": True,
+                "qptr_data": qptr_data,
+                "analytics_data": analytics_data,
+                "source_extracted": source_extracted,
+                "screenshot": screenshot_b64,
+                "current_url": current_url,
+                "page_title": page_title,
+                "page_length": len(page_source),
+                "game_id": game_id,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"QPTR capture error: {str(e)}")
+            screenshot_data = None
+            try:
+                screenshot_data = sb.get_screenshot_as_png()
+                screenshot_b64 = base64.b64encode(screenshot_data).decode()
+            except:
+                screenshot_b64 = None
+                
+            return {
+                "success": False,
+                "error": str(e),
+                "traceback": traceback.format_exc(),
+                "screenshot": screenshot_b64,
+                "timestamp": datetime.now().isoformat()
+            }
+
+    def run_complete_analytics_collection(self, game_id: Optional[str] = None) -> Dict[str, Any]:
+        """Main method to run complete analytics collection with full error handling"""
+        start_time = datetime.now()
+        results = {
+            "start_time": start_time.isoformat(),
+            "game_id": game_id,
+            "steps": {}
         }
         
-        return report
+        try:
+            with self.get_selenium_session() as sb:
+                # Step 1: Test Cloudflare bypass
+                logger.info("Step 1: Testing Cloudflare bypass...")
+                cloudflare_result = self.test_cloudflare_bypass(sb)
+                results["steps"]["cloudflare_test"] = cloudflare_result
+                
+                if not cloudflare_result.get("cloudflare_bypass", False):
+                    logger.warning("Cloudflare bypass may have failed, proceeding anyway...")
+                
+                # Step 2: Login to Roblox
+                logger.info("Step 2: Logging into Roblox...")
+                login_result = self.login_to_roblox(sb)
+                results["steps"]["login"] = login_result
+                
+                if not login_result.get("success", False):
+                    results["overall_success"] = False
+                    results["error"] = "Login failed"
+                    return results
+                
+                # Step 3: Capture QPTR data
+                logger.info("Step 3: Capturing QPTR data...")
+                qptr_result = self.capture_qptr_data(sb, game_id)
+                results["steps"]["qptr_capture"] = qptr_result
+                
+                # Overall success assessment
+                results["overall_success"] = (
+                    cloudflare_result.get("success", False) and
+                    login_result.get("success", False) and
+                    qptr_result.get("success", False)
+                )
+                
+                # Store results for later retrieval
+                self.last_results = results
+                
+                return results
+                
+        except Exception as e:
+            logger.error(f"Complete analytics collection error: {str(e)}")
+            results["overall_success"] = False
+            results["error"] = str(e)
+            results["traceback"] = traceback.format_exc()
+            return results
+        
+        finally:
+            end_time = datetime.now()
+            results["end_time"] = end_time.isoformat()
+            results["duration_seconds"] = (end_time - start_time).total_seconds()
 
-# Flask Routes (same as before, just updated version)
+# Initialize analytics instance
+analytics = RobloxAnalytics()
 
-@app.route('/status', methods=['GET'])
-def health_check():
+@app.route('/')
+def home():
+    """Root endpoint with system information"""
     return jsonify({
-        'status': 'ok',
-        'timestamp': datetime.utcnow().isoformat(),
-        'driver_type': 'undetected_chromedriver',
-        'environment': 'railway',
-        'version': '7.0-undetected-chromedriver'
+        "status": "Roblox Analytics API - Production Ready",
+        "version": "3.0.0",
+        "python_version": "3.12 Compatible",
+        "cloudflare_bypass": "SeleniumBase UC Mode",
+        "environment": os.getenv('RAILWAY_ENVIRONMENT', 'local'),
+        "features": [
+            "Cloudflare bypass testing",
+            "Roblox login automation", 
+            "QPTR data extraction",
+            "Screenshot diagnostics",
+            "Comprehensive error handling"
+        ],
+        "endpoints": [
+            "GET /status - System status",
+            "POST /test-cloudflare - Test Cloudflare bypass",
+            "POST /trigger-diagnostic - Full analytics collection",
+            "GET /results - Latest results",
+            "POST /login-test - Test login only"
+        ],
+        "timestamp": datetime.now().isoformat()
     })
+
+@app.route('/status')
+def status():
+    """System status endpoint"""
+    return jsonify({
+        "status": "running",
+        "last_login": analytics.last_login.isoformat() if analytics.last_login else None,
+        "environment": os.getenv('RAILWAY_ENVIRONMENT', 'local'),
+        "port": os.getenv('PORT', '5000'),
+        "credentials_configured": bool(analytics.username and analytics.password),
+        "system_info": {
+            "python_version": sys.version,
+            "platform": sys.platform
+        },
+        "timestamp": datetime.now().isoformat()
+    })
+
+@app.route('/test-cloudflare', methods=['POST'])
+def test_cloudflare_endpoint():
+    """Test Cloudflare bypass capability"""
+    try:
+        logger.info("Testing Cloudflare bypass via endpoint...")
+        
+        with analytics.get_selenium_session() as sb:
+            result = analytics.test_cloudflare_bypass(sb)
+            return jsonify(result)
+            
+    except Exception as e:
+        logger.error(f"Cloudflare test endpoint error: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
+@app.route('/login-test', methods=['POST'])
+def login_test_endpoint():
+    """Test Roblox login only"""
+    try:
+        logger.info("Testing Roblox login via endpoint...")
+        
+        with analytics.get_selenium_session() as sb:
+            result = analytics.login_to_roblox(sb)
+            return jsonify(result)
+            
+    except Exception as e:
+        logger.error(f"Login test endpoint error: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+            "timestamp": datetime.now().isoformat()
+        }), 500
 
 @app.route('/trigger-diagnostic', methods=['POST'])
 def trigger_diagnostic():
-    """Trigger diagnostic with UNDETECTED CHROMEDRIVER"""
+    """Trigger complete analytics collection with comprehensive diagnostics"""
     try:
-        logger.info("Starting diagnostic with UNDETECTED CHROMEDRIVER")
+        data = request.get_json() or {}
+        game_id = data.get('game_id')
         
-        if not ALT_PASSWORD:
-            return jsonify({
-                'success': False,
-                'error': 'ALT_ROBLOX_PASSWORD not configured'
-            }), 400
+        logger.info(f"Starting complete diagnostic collection for game_id: {game_id}")
+        result = analytics.run_complete_analytics_collection(game_id)
         
-        def run_diagnostic():
-            try:
-                diagnostics = RobloxLoginDiagnostics()
-                report = diagnostics.run_full_diagnostic()
-                diagnostic_results[diagnostics.report_id] = report
-                
-                # Upload to SparkedHosting API
-                try:
-                    upload_response = requests.post(
-                        f"{SPARKEDHOSTING_API}/diagnostic-report",
-                        json=report,
-                        timeout=30
-                    )
-                    if upload_response.status_code == 200:
-                        logger.info("Report uploaded to SparkedHosting")
-                except Exception as upload_error:
-                    logger.error(f"Upload error: {upload_error}")
-                
-            except Exception as e:
-                logger.error(f"Diagnostic error: {e}")
-        
-        diagnostic_thread = threading.Thread(target=run_diagnostic)
-        diagnostic_thread.daemon = True
-        diagnostic_thread.start()
-        
-        return jsonify({
-            'success': True,
-            'message': 'Diagnostic started with UNDETECTED CHROMEDRIVER',
-            'estimated_duration': '120-240 seconds',
-            'check_results_at': '/results',
-            'features': [
-                'undetected_chromedriver',
-                'cloudflare_bypass',
-                'human_like_typing',
-                'enhanced_stealth'
-            ]
-        })
+        return jsonify(result)
         
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/results', methods=['GET'])
-def get_results():
-    """Get latest diagnostic results"""
-    try:
-        if not diagnostic_results:
-            return jsonify({
-                'success': False,
-                'message': 'No diagnostic results available'
-            })
-        
-        latest_report_id = max(diagnostic_results.keys())
-        latest_report = diagnostic_results[latest_report_id]
-        
+        logger.error(f"Diagnostic trigger error: {str(e)}")
         return jsonify({
-            'success': True,
-            'report': latest_report,
-            'total_reports': len(diagnostic_results)
-        })
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+            "timestamp": datetime.now().isoformat()
+        }), 500
 
-@app.route('/health', methods=['GET'])
-def simple_health():
+@app.route('/results')
+def results():
+    """Get latest results and system information"""
     return jsonify({
-        'status': 'healthy',
-        'service': 'roblox-analytics-flask-undetected',
-        'timestamp': datetime.utcnow().isoformat()
+        "system_info": {
+            "system": "SeleniumBase UC Mode",
+            "python_version": "3.12",
+            "cloudflare_status": "Bypass Enabled",
+            "environment": os.getenv('RAILWAY_ENVIRONMENT', 'local')
+        },
+        "session_info": {
+            "last_login": analytics.last_login.isoformat() if analytics.last_login else None,
+            "credentials": "Configured" if analytics.username else "Missing",
+            "session_valid": analytics.last_login and 
+                           (datetime.now() - analytics.last_login) < timedelta(hours=analytics.login_valid_hours)
+        },
+        "last_results": analytics.last_results,
+        "timestamp": datetime.now().isoformat()
     })
 
+@app.route('/health')
+def health():
+    """Health check endpoint for Railway"""
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat()
+    })
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({
+        "error": "Endpoint not found",
+        "available_endpoints": [
+            "GET /",
+            "GET /status", 
+            "POST /test-cloudflare",
+            "POST /login-test",
+            "POST /trigger-diagnostic",
+            "GET /results",
+            "GET /health"
+        ]
+    }), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({
+        "error": "Internal server error",
+        "message": str(error),
+        "timestamp": datetime.now().isoformat()
+    }), 500
+
 if __name__ == '__main__':
-    logger.info("Starting Railway Flask Server with UNDETECTED CHROMEDRIVER")
-    app.run(host='0.0.0.0', port=PORT, debug=False)
+    port = int(os.environ.get('PORT', 5000))
+    debug_mode = not (os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('PORT'))
+    
+    logger.info(f"Starting Flask app on port {port}, debug={debug_mode}")
+    logger.info(f"Environment: {'Railway' if os.getenv('RAILWAY_ENVIRONMENT') else 'Local'}")
+    
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)

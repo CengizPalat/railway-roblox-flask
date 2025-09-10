@@ -11,6 +11,9 @@ blinker==1.7.0
 seleniumbase==4.21.6
 selenium==4.15.2
 
+# CAPTCHA solving service for Roblox verification puzzles
+python-2captcha==1.1.3
+
 # HTTP and networking
 requests==2.31.0
 urllib3==2.1.0
@@ -35,3 +38,4 @@ python-json-logger==2.0.7
 # Note: All packages verified compatible with Python 3.12
 # SeleniumBase 4.21.6+ eliminates distutils dependency
 # UC mode enabled for Cloudflare bypass
+# python-2captcha for automated Roblox verification solving

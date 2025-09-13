@@ -1,5 +1,5 @@
-# CORRECTED: Fixed package names for nixpkgs compatibility
-# This file ONLY handles the build process - no start command conflicts
+# MINIMAL VERSION: Only essential packages to avoid conflicts
+# This should be much more reliable for Railway deployment
 
 [phases.build]
 dependsOn = ["install"]
@@ -13,41 +13,17 @@ cmds = [
     "seleniumbase install chromedriver",
     "python -c 'import seleniumbase; print(\"✅ SeleniumBase installed successfully\")'",
     "python -c 'from seleniumbase import SB; print(\"✅ SB import successful\")'",
-    "python -c 'from python2captcha import TwoCaptcha; print(\"✅ 2Captcha import successful\")'",
-    "which chromium || which google-chrome || echo 'Chrome installation check'",
-    "which chromedriver || echo 'ChromeDriver installation check'"
+    "python -c 'from python2captcha import TwoCaptcha; print(\"✅ 2Captcha import successful\")'"
 ]
 
 [phases.setup]
 nixPkgs = [
     "python312",
     "python312Packages.pip",
-    "python312Packages.setuptools", 
+    "python312Packages.setuptools",
     "python312Packages.wheel",
     "chromium",
-    "chromedriver",
-    "xvfb-run",
-    "fontconfig",
-    "freetype",
-    "glib",
-    "gtk3",
-    "harfbuzz",
-    "icu",
-    "libdrm",
-    "libjpeg",
-    "libpng",
-    "libtiff",
-    "libwebp",
-    "mesa",
-    "nspr",
-    "nss",
-    "pango",
-    "zlib",
-    "libgcc",
-    "glibc",
-    "gcc",
-    "openssl",
-    "cacert"
+    "chromedriver"
 ]
 
 [variables]

@@ -1,5 +1,5 @@
 [start]
-cmd = "python main.py"
+cmd = "gunicorn main:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120"
 
 [phases.build]
 dependsOn = ["install"]
@@ -8,13 +8,7 @@ dependsOn = ["install"]
 dependsOn = ["setup"]
 cmds = [
     "pip install --upgrade pip setuptools wheel",
-    "pip install -r requirements.txt",
-    "seleniumbase install chromium",
-    "seleniumbase install chromedriver",
-    "python -c 'import seleniumbase; print(\"SeleniumBase installed successfully\")'",
-    "python -c 'from seleniumbase import SB; print(\"SB import successful\")'",
-    "which chromium || which google-chrome || echo 'Chrome installation check'",
-    "which chromedriver || echo 'ChromeDriver installation check'"
+    "pip install -r requirements.txt"
 ]
 
 [phases.setup]
@@ -22,33 +16,8 @@ nixPkgs = [
     "python312",
     "python312Packages.pip",
     "python312Packages.setuptools",
-    "python312Packages.wheel",
-    "chromium",
-    "chromedriver",
-    "xvfb-run",
-    "fontconfig",
-    "freetype",
-    "glib",
-    "gtk3",
-    "harfbuzz",
-    "icu",
-    "libdrm",
-    "libjpeg",
-    "libpng",
-    "libtiff",
-    "libwebp",
-    "mesa",
-    "nspr",
-    "nss",
-    "pango",
-    "zlib",
-    "libgcc",
-    "glibc",
-    "gcc",
-    "openssl",
-    "ca-certificates"
+    "python312Packages.wheel"
 ]
 
 [variables]
-CHROME_BINARY_LOCATION = "/nix/store/*/bin/chromium"
-CHROMEDRIVER_PATH = "/nix/store/*/bin/chromedriver"
+PYTHONUNBUFFERED = "1"

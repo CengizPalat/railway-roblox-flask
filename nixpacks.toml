@@ -7,8 +7,9 @@ dependsOn = ["install"]
 [phases.install]
 dependsOn = ["setup"]
 cmds = [
-    "pip install --upgrade pip setuptools wheel",
-    "pip install -r requirements.txt"
+    "python -m venv /opt/venv",
+    ". /opt/venv/bin/activate && pip install --upgrade pip setuptools wheel",
+    ". /opt/venv/bin/activate && pip install -r requirements.txt"
 ]
 
 [phases.setup]
@@ -16,8 +17,10 @@ nixPkgs = [
     "python312",
     "python312Packages.pip",
     "python312Packages.setuptools",
-    "python312Packages.wheel"
+    "python312Packages.wheel",
+    "python312Packages.virtualenv"
 ]
 
 [variables]
 PYTHONUNBUFFERED = "1"
+PATH = "/opt/venv/bin:$PATH"

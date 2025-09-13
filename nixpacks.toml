@@ -1,5 +1,5 @@
-# NOTE: startCommand is handled by railway.json
-# This file ONLY handles the build process to avoid conflicts
+# CORRECTED: Fixed package names for nixpkgs compatibility
+# This file ONLY handles the build process - no start command conflicts
 
 [phases.build]
 dependsOn = ["install"]
@@ -22,7 +22,7 @@ cmds = [
 nixPkgs = [
     "python312",
     "python312Packages.pip",
-    "python312Packages.setuptools",
+    "python312Packages.setuptools", 
     "python312Packages.wheel",
     "chromium",
     "chromedriver",
@@ -47,7 +47,7 @@ nixPkgs = [
     "glibc",
     "gcc",
     "openssl",
-    "ca-certificates"
+    "cacert"
 ]
 
 [variables]

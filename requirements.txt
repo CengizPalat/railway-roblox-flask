@@ -8,12 +8,11 @@ itsdangerous==2.1.2
 blinker==1.7.0
 
 # SeleniumBase and browser automation (Python 3.12 compatible)
-# NOTE: SeleniumBase will auto-install Chrome when no custom nixpacks.toml
 seleniumbase==4.21.6
 selenium==4.15.2
 
-# CORRECT: Your original working 2Captcha package
-python-2captcha==1.1.3
+# CORRECTED: Use the actual available version (not 1.1.3 which doesn't exist)
+python-2captcha==1.1.0
 
 # HTTP and networking
 requests==2.31.0
@@ -39,14 +38,11 @@ python-json-logger==2.0.7
 # REQUIRED: Gunicorn for Railway production deployment
 gunicorn==21.2.0
 
-# ===== POST-INSTALL CHROME SETUP (if needed) =====
-# If Chrome installation fails, SeleniumBase will download it automatically
-# when first running: `seleniumbase install chrome`
-#
-# Your 2Captcha setup:
-# ✅ API key: b44a6e6b17d4b75d834aa5820db113ff
-# ✅ Package: python-2captcha==1.1.3  
-# ✅ Import: from python2captcha import TwoCaptcha
-# ✅ Features: FunCaptcha + Image puzzles + Human workers
-# ✅ Cost: ~$0.001-$0.002 per solve
-# ✅ Balance: $3.00 = ~1500-3000 verifications
+# ===== 2CAPTCHA VERIFICATION SETUP =====
+# CORRECTED VERSION: python-2captcha==1.1.0 (latest available)
+# Import: from python2captcha import TwoCaptcha
+# API Key: b44a6e6b17d4b75d834aa5820db113ff
+# Features: FunCaptcha + Image puzzles + Human workers
+# Cost: ~$0.001-$0.002 per solve  
+# Balance: $3.00 = ~1500-3000 verifications
+# Available versions: 1.0.0, 1.1.0 (NOT 1.1.3)

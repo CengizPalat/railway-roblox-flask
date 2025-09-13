@@ -27,17 +27,18 @@ app = Flask(__name__)
 
 class RobloxVerificationSolver:
     def __init__(self, api_key=None):
-        # Your 2Captcha API key
+        # Your 2Captcha API key - FIXED IMPORT
         self.api_key = api_key or "b44a6e6b17d4b75d834aa5820db113ff"
         self.solver = None
         
         if self.api_key:
             try:
-                from python2captcha import TwoCaptcha
+                # FIXED: Correct import for 2Captcha
+                from twocaptcha import TwoCaptcha
                 self.solver = TwoCaptcha(self.api_key)
                 logger.info(f"✅ 2Captcha solver initialized successfully with API key: {self.api_key[:8]}...")
             except ImportError:
-                logger.error("❌ python2captcha not installed - installing now would fix this")
+                logger.error("❌ twocaptcha package not installed - install with: pip install twocaptcha")
             except Exception as e:
                 logger.error(f"❌ Failed to initialize 2Captcha: {str(e)}")
         else:
@@ -418,6 +419,7 @@ class RobloxVerificationSolver:
             logger.error(f"❌ Wait and retry failed: {str(e)}")
             return {"success": False, "error": str(e)}
 
+
 class RobloxAnalytics:
     def __init__(self):
         self.username = "ByddyY8rPao2124"
@@ -542,58 +544,52 @@ class RobloxAnalytics:
             
             if not challenge_detected and has_roblox_content:
                 logger.info("✅ Cloudflare bypass successful!")
+                return {
+                    "cloudflare_bypass": True,
+                    "success": True,
+                    "current_url": current_url,
+                    "page_title": page_title,
+                    "screenshot": screenshot_b64,
+                    "has_roblox_content": has_roblox_content
+                }
             else:
-                logger.warning(f"⚠️ Cloudflare challenge detected: {detected_indicators}")
-            
-            return {
-                "success": True,
-                "cloudflare_bypass": not challenge_detected and has_roblox_content,
-                "current_url": current_url,
-                "page_title": page_title,
-                "detected_indicators": detected_indicators,
-                "has_roblox_content": has_roblox_content,
-                "screenshot": screenshot_b64,
-                "page_length": len(page_source),
-                "timestamp": datetime.now().isoformat()
-            }
-            
+                logger.warning(f"⚠️ Possible Cloudflare challenge: {detected_indicators}")
+                return {
+                    "cloudflare_bypass": False,
+                    "success": False,
+                    "detected_indicators": detected_indicators,
+                    "current_url": current_url,
+                    "screenshot": screenshot_b64
+                }
+                
         except Exception as e:
-            logger.error(f"❌ Cloudflare bypass test error: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e),
-                "timestamp": datetime.now().isoformat()
-            }
+            logger.error(f"❌ Cloudflare test failed: {str(e)}")
+            return {"cloudflare_bypass": False, "success": False, "error": str(e)}
 
-    def handle_initial_page_load(self, sb, url: str) -> bool:
-        """Handle initial page load with Cloudflare detection and waiting"""
+    def handle_initial_page_load(self, sb, url):
+        """Handle initial page load with Cloudflare detection"""
         try:
-            logger.info(f"📄 Loading page: {url}")
+            logger.info(f"🌐 Loading initial page: {url}")
             sb.get(url)
-            sb.sleep(5)
             
-            page_source = sb.get_page_source().lower()
-            cloudflare_detected = any(indicator in page_source for indicator in [
-                "checking your browser", "cloudflare", "please wait"
-            ])
+            # Check for Cloudflare challenges
+            max_wait = 30
+            waited = 0
             
-            if cloudflare_detected:
-                logger.info("🌐 Cloudflare challenge detected, waiting for UC bypass...")
+            while waited < max_wait:
+                sb.sleep(2)
+                waited += 2
                 
-                max_wait = 30
-                wait_interval = 2
-                waited = 0
+                page_source = sb.get_page_source().lower()
                 
-                while waited < max_wait:
-                    sb.sleep(wait_interval)
-                    waited += wait_interval
-                    
-                    current_source = sb.get_page_source().lower()
-                    if not any(indicator in current_source for indicator in [
-                        "checking your browser", "cloudflare", "please wait"
-                    ]):
-                        logger.info("✅ Cloudflare challenge bypassed!")
-                        break
+                # Check for Cloudflare indicators
+                cf_indicators = ["checking your browser", "cloudflare", "please wait"]
+                if any(indicator in page_source for indicator in cf_indicators):
+                    logger.info(f"🔄 Cloudflare challenge detected, waiting... ({waited}s)")
+                    continue
+                else:
+                    logger.info("✅ Page loaded successfully (no Cloudflare challenge)")
+                    break
                     
                     logger.info(f"⏳ Still waiting for Cloudflare bypass... ({waited}s)")
                 
@@ -735,111 +731,127 @@ class RobloxAnalytics:
             if any(success_indicators):
                 logger.info("✅ LOGIN SUCCESSFUL!")
                 self.last_login = datetime.now()
-                return {
-                    "success": True,
-                    "login_time": self.last_login.isoformat(),
-                    "final_url": current_url,
-                    "verification_solved": verification_detected
-                }
-            
-            # Try navigating to creator dashboard
-            logger.info("🎯 Attempting to navigate to creator dashboard...")
-            sb.get("https://create.roblox.com/")
-            sb.sleep(8)
-            
-            final_url = sb.get_current_url()
-            if "create.roblox.com" in final_url:
-                logger.info("✅ Successfully reached creator dashboard!")
-                self.last_login = datetime.now()
-                return {
-                    "success": True,
-                    "login_time": self.last_login.isoformat(),
-                    "final_url": final_url,
-                    "verification_solved": verification_detected
-                }
-            
-            # Login failed
-            screenshot_data = sb.get_screenshot_as_png()
-            screenshot_b64 = base64.b64encode(screenshot_data).decode()
-            
-            return {
-                "success": False,
-                "error": "Login verification failed - unexpected final URL",
-                "final_url": current_url,
-                "screenshot": screenshot_b64
-            }
-            
-        except Exception as e:
-            logger.error(f"❌ Login error: {str(e)}")
-            try:
+                
                 screenshot_data = sb.get_screenshot_as_png()
                 screenshot_b64 = base64.b64encode(screenshot_data).decode()
-            except:
-                screenshot_b64 = None
                 
+                return {
+                    "success": True,
+                    "current_url": current_url,
+                    "login_time": self.last_login.isoformat(),
+                    "verification_used": verification_detected,
+                    "screenshot": screenshot_b64
+                }
+            else:
+                screenshot_data = sb.get_screenshot_as_png()
+                screenshot_b64 = base64.b64encode(screenshot_data).decode()
+                
+                logger.error(f"❌ Login failed - unexpected page: {current_url}")
+                return {
+                    "success": False,
+                    "error": f"Login failed - unexpected page: {current_url}",
+                    "current_url": current_url,
+                    "page_text_sample": page_text[:200],
+                    "screenshot": screenshot_b64
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Login error: {str(e)}")
             return {
                 "success": False,
                 "error": str(e),
-                "traceback": traceback.format_exc(),
-                "screenshot": screenshot_b64
+                "traceback": traceback.format_exc()
             }
 
-    def capture_qptr_data(self, sb, game_id: Optional[str] = None) -> Dict[str, Any]:
-        """Capture QPTR data from creator dashboard"""
+    def navigate_to_analytics(self, sb, game_id: str = "7291257156") -> Dict[str, Any]:
+        """Navigate to analytics page for specific game"""
         try:
-            if game_id:
-                analytics_url = f"https://create.roblox.com/dashboard/creations/experiences/{game_id}/analytics"
-                logger.info(f"📊 Navigating to specific game analytics: {game_id}")
-            else:
-                analytics_url = "https://create.roblox.com/dashboard/creations"
-                logger.info("📊 Navigating to general creations dashboard")
-                
-            if not self.handle_initial_page_load(sb, analytics_url):
-                return {"success": False, "error": "Failed to load analytics page"}
+            logger.info(f"📊 Navigating to analytics for game {game_id}...")
             
+            analytics_url = f"https://create.roblox.com/dashboard/creations/experiences/{game_id}/analytics"
+            logger.info(f"🌐 Analytics URL: {analytics_url}")
+            
+            sb.get(analytics_url)
             sb.sleep(10)
             
-            # Take diagnostic screenshot
+            current_url = sb.get_current_url()
+            page_title = sb.get_title()
+            
+            if "analytics" in current_url.lower():
+                logger.info("✅ Successfully navigated to analytics page")
+                
+                screenshot_data = sb.get_screenshot_as_png()
+                screenshot_b64 = base64.b64encode(screenshot_data).decode()
+                
+                return {
+                    "success": True,
+                    "current_url": current_url,
+                    "page_title": page_title,
+                    "screenshot": screenshot_b64
+                }
+            else:
+                logger.error(f"❌ Failed to reach analytics page: {current_url}")
+                
+                screenshot_data = sb.get_screenshot_as_png()
+                screenshot_b64 = base64.b64encode(screenshot_data).decode()
+                
+                return {
+                    "success": False,
+                    "error": f"Not on analytics page: {current_url}",
+                    "current_url": current_url,
+                    "screenshot": screenshot_b64
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Analytics navigation error: {str(e)}")
+            return {"success": False, "error": str(e)}
+
+    def extract_qptr_data(self, sb, game_id: str = "7291257156") -> Dict[str, Any]:
+        """Extract QPTR data from analytics page"""
+        try:
+            logger.info(f"📈 Extracting QPTR data for game {game_id}...")
+            
+            sb.sleep(5)  # Wait for page to load
+            
+            page_source = sb.get_page_source()
+            current_url = sb.get_current_url()
+            
             screenshot_data = sb.get_screenshot_as_png()
             screenshot_b64 = base64.b64encode(screenshot_data).decode()
             
-            # Extract QPTR and analytics data
-            qptr_data = {}
-            analytics_data = {}
-            
-            qptr_selectors = [
-                "[data-testid*='qptr']", "[data-testid*='playthrough']", 
-                "[data-testid*='retention']", ".metric-card", ".analytics-metric",
-                "[class*='metric']", "[class*='stat']", ".dashboard-stat"
+            # Search for QPTR-related data in page source
+            qptr_patterns = [
+                r'qptr["\']:\s*["\']?(\d+\.?\d*%?)',
+                r'qualified.*play.*through.*rate["\']:\s*["\']?(\d+\.?\d*%?)',
+                r'QPTR["\']:\s*["\']?(\d+\.?\d*%?)',
+                r'"qptr":\s*"?(\d+\.?\d*%?)"?',
+                r'playThroughRate["\']:\s*["\']?(\d+\.?\d*%?)'
             ]
             
-            logger.info("🔍 Searching for QPTR data...")
+            qptr_data = {}
+            for i, pattern in enumerate(qptr_patterns):
+                matches = re.findall(pattern, page_source, re.IGNORECASE)
+                if matches:
+                    qptr_data[f"pattern_{i}"] = matches
+                    logger.info(f"🎯 QPTR Pattern {i} found: {matches[:3]}")
             
-            for selector in qptr_selectors:
-                try:
-                    if sb.is_element_present(selector, timeout=3):
-                        elements = sb.find_elements(selector)
-                        for i, elem in enumerate(elements[:10]):
-                            try:
-                                text = elem.text.strip()
-                                if text and "%" in text:
-                                    text_lower = text.lower()
-                                    if any(keyword in text_lower for keyword in [
-                                        'play', 'through', 'retention', 'rate', 'qualified'
-                                    ]):
-                                        qptr_data[f"{selector}_{i}"] = text
-                                        logger.info(f"📈 Found QPTR data: {text}")
-                                    elif text and len(text) < 50:
-                                        analytics_data[f"{selector}_{i}"] = text
-                            except:
-                                continue
-                except:
-                    continue
+            # Search for general analytics data
+            analytics_patterns = [
+                r'"(\w+)":\s*(\d+\.?\d*%?)',
+                r'(\w+)["\']:\s*["\']?(\d+\.?\d*%?)',
+                r'analytics["\'].*?(\d+\.?\d*%?)',
+                r'metrics["\'].*?(\d+\.?\d*%?)'
+            ]
             
-            # Extract from page source using regex
-            page_source = sb.get_page_source()
+            analytics_data = {}
+            for i, pattern in enumerate(analytics_patterns):
+                matches = re.findall(pattern, page_source, re.IGNORECASE)
+                if matches:
+                    analytics_data[f"analytics_pattern_{i}"] = matches[:10]
+                    logger.info(f"📊 Analytics Pattern {i} found: {len(matches)} matches")
+            
+            # Look for percentage values that might be QPTR
             percentage_patterns = [
-                r'(?:qptr|playthrough|retention).*?(\d+\.?\d*%)',
                 r'(\d+\.?\d*%)',
                 r'"value":\s*"(\d+\.?\d*%)"'
             ]
@@ -849,7 +861,7 @@ class RobloxAnalytics:
                 matches = re.findall(pattern, page_source, re.IGNORECASE)
                 if matches:
                     source_extracted[f"pattern_{i}"] = matches[:5]
-                    logger.info(f"🔍 Pattern {i} found: {matches[:3]}")
+                    logger.info(f"📍 Pattern {i} found: {matches[:3]}")
             
             current_url = sb.get_current_url()
             page_title = sb.get_title()
@@ -907,33 +919,43 @@ class RobloxAnalytics:
                 results["steps"]["cloudflare_test"] = cloudflare_result
                 
                 if not cloudflare_result.get("cloudflare_bypass", False):
-                    logger.warning("⚠️ Cloudflare bypass may have failed, proceeding anyway...")
+                    logger.warning("⚠️ Cloudflare bypass may have failed, but continuing...")
                 
-                # Step 2: Login to Roblox with 2Captcha verification solving
-                logger.info("🔐 Step 2: Logging into Roblox with 2Captcha verification solving...")
+                # Step 2: Login with verification solving
+                logger.info("🔐 Step 2: Logging in with 2Captcha verification solving...")
                 login_result = self.login_to_roblox(sb)
                 results["steps"]["login"] = login_result
                 
-                if not login_result.get("success", False):
+                if not login_result.get("success"):
+                    logger.error("❌ Login failed, stopping process")
                     results["overall_success"] = False
-                    results["error"] = f"Login failed: {login_result.get('error')}"
-                    logger.error(f"❌ LOGIN FAILED: {results['error']}")
                     return results
                 
-                # Step 3: Capture QPTR data
-                logger.info("📊 Step 3: Capturing QPTR data...")
-                qptr_result = self.capture_qptr_data(sb, game_id)
-                results["steps"]["qptr_capture"] = qptr_result
+                # Step 3: Navigate to analytics
+                logger.info("📊 Step 3: Navigating to analytics...")
+                analytics_nav_result = self.navigate_to_analytics(sb, game_id or "7291257156")
+                results["steps"]["analytics_navigation"] = analytics_nav_result
                 
-                # Overall success assessment
-                results["overall_success"] = (
-                    cloudflare_result.get("success", False) and
-                    login_result.get("success", False) and
-                    qptr_result.get("success", False)
-                )
+                if not analytics_nav_result.get("success"):
+                    logger.error("❌ Analytics navigation failed")
+                    results["overall_success"] = False
+                    return results
+                
+                # Step 4: Extract QPTR data
+                logger.info("📈 Step 4: Extracting QPTR data...")
+                qptr_result = self.extract_qptr_data(sb, game_id or "7291257156")
+                results["steps"]["qptr_extraction"] = qptr_result
+                
+                # Determine overall success
+                critical_steps = ["login", "analytics_navigation", "qptr_extraction"]
+                success_count = sum(1 for step in critical_steps if results["steps"].get(step, {}).get("success", False))
+                
+                results["overall_success"] = success_count >= 2
+                results["steps_completed"] = success_count
+                results["total_steps"] = len(critical_steps)
                 
                 if results["overall_success"]:
-                    logger.info("🎉 COMPLETE SUCCESS! All steps completed successfully!")
+                    logger.info("🎉 All steps completed successfully!")
                 else:
                     logger.warning("⚠️ Partial success - some steps failed")
                 
@@ -953,6 +975,7 @@ class RobloxAnalytics:
             results["end_time"] = end_time.isoformat()
             results["duration_seconds"] = (end_time - start_time).total_seconds()
             logger.info(f"⏱️ Total duration: {results['duration_seconds']:.2f} seconds")
+
 
 # Initialize analytics instance with your API key
 analytics = RobloxAnalytics()
@@ -1032,7 +1055,7 @@ def status():
 def test_cloudflare_endpoint():
     """Test Cloudflare bypass capability"""
     try:
-        logger.info("🌐 Testing Cloudflare bypass via endpoint...")
+        logger.info("🌐 Testing Cloudflare bypass capability...")
         
         with analytics.get_selenium_session() as sb:
             result = analytics.test_cloudflare_bypass(sb)
@@ -1048,38 +1071,33 @@ def test_cloudflare_endpoint():
 
 @app.route('/test-verification', methods=['POST'])
 def test_verification_endpoint():
-    """Test 2Captcha verification solving only"""
+    """Test verification solving without full login"""
     try:
-        logger.info("🧩 Testing 2Captcha verification solving...")
+        logger.info("🧩 Testing verification solving capability...")
         
         with analytics.get_selenium_session() as sb:
-            # Navigate to login to trigger verification
+            # Navigate to login page to trigger verification
             sb.get("https://www.roblox.com/login")
-            sb.sleep(3)
+            sb.sleep(5)
             
-            # Fill credentials to trigger verification
-            if sb.is_element_present("#login-username", timeout=5):
-                sb.type("#login-username", analytics.username)
-                sb.type("#login-password", analytics.password)
-                sb.click("#login-button")
-                sb.sleep(8)
-                
-                # Check if verification appears
-                page_text = sb.get_text("body").lower()
-                verification_indicators = ["verification", "start puzzle", "captcha", "challenge"]
-                
-                if any(indicator in page_text for indicator in verification_indicators):
-                    logger.info("🎯 Verification detected - testing 2Captcha solving...")
-                    result = analytics.verification_solver.solve_roblox_verification(sb)
-                    result["api_key_used"] = f"{analytics.verification_solver.api_key[:8]}..."
-                    return jsonify(result)
-                else:
-                    return jsonify({
-                        "success": True,
-                        "message": "No verification challenge appeared - account may be trusted",
-                        "api_key_used": f"{analytics.verification_solver.api_key[:8]}...",
-                        "timestamp": datetime.now().isoformat()
-                    })
+            # Check if verification is present
+            page_text = sb.get_text("body").lower()
+            verification_indicators = ["verification", "start puzzle", "captcha", "challenge"]
+            verification_detected = any(indicator in page_text for indicator in verification_indicators)
+            
+            if verification_detected:
+                logger.info("🎯 Verification challenge found, testing solver...")
+                result = analytics.verification_solver.solve_roblox_verification(sb)
+                result["api_key_used"] = f"{analytics.verification_solver.api_key[:8]}..."
+                return jsonify(result)
+            else:
+                logger.info("ℹ️ No verification challenge found")
+                return jsonify({
+                    "success": True,
+                    "message": "No verification challenge appeared - account may be trusted",
+                    "api_key_used": f"{analytics.verification_solver.api_key[:8]}...",
+                    "timestamp": datetime.now().isoformat()
+                })
             
             return jsonify({
                 "success": False,

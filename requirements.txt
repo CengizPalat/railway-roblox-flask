@@ -11,8 +11,8 @@ blinker==1.7.0
 seleniumbase==4.21.6
 selenium==4.15.2
 
-# 2Captcha service for automated Roblox verification solving
-python-2captcha==1.1.3
+# FIXED: Correct 2Captcha package name
+twocaptcha==1.1.3
 
 # HTTP and networking
 requests==2.31.0
@@ -35,8 +35,11 @@ six==1.16.0
 # Optional: Enhanced logging and monitoring
 python-json-logger==2.0.7
 
+# Gunicorn for Railway deployment
+gunicorn==21.2.0
+
 # ===== VERIFICATION SOLVING SETUP =====
-# This requirements.txt includes python-2captcha for automated
+# This requirements.txt includes twocaptcha for automated
 # Roblox verification puzzle solving with API key: b44a6e6b17d4b75d834aa5820db113ff
 # 
 # Features enabled:

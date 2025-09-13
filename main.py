@@ -27,18 +27,18 @@ app = Flask(__name__)
 
 class RobloxVerificationSolver:
     def __init__(self, api_key=None):
-        # Your 2Captcha API key - FIXED IMPORT
+        # Your 2Captcha API key
         self.api_key = api_key or "b44a6e6b17d4b75d834aa5820db113ff"
         self.solver = None
         
         if self.api_key:
             try:
-                # FIXED: Correct import for 2Captcha
-                from twocaptcha import TwoCaptcha
+                # CORRECT: Using your original working import
+                from python2captcha import TwoCaptcha
                 self.solver = TwoCaptcha(self.api_key)
                 logger.info(f"✅ 2Captcha solver initialized successfully with API key: {self.api_key[:8]}...")
             except ImportError:
-                logger.error("❌ twocaptcha package not installed - install with: pip install twocaptcha")
+                logger.error("❌ python2captcha not installed - check requirements.txt")
             except Exception as e:
                 logger.error(f"❌ Failed to initialize 2Captcha: {str(e)}")
         else:
@@ -591,8 +591,6 @@ class RobloxAnalytics:
                     logger.info("✅ Page loaded successfully (no Cloudflare challenge)")
                     break
                     
-                    logger.info(f"⏳ Still waiting for Cloudflare bypass... ({waited}s)")
-                
                 if waited >= max_wait:
                     logger.warning("⚠️ Cloudflare challenge may not have been bypassed within timeout")
             
@@ -1098,12 +1096,6 @@ def test_verification_endpoint():
                     "api_key_used": f"{analytics.verification_solver.api_key[:8]}...",
                     "timestamp": datetime.now().isoformat()
                 })
-            
-            return jsonify({
-                "success": False,
-                "error": "Could not find login form",
-                "timestamp": datetime.now().isoformat()
-            })
             
     except Exception as e:
         logger.error(f"❌ Verification test error: {str(e)}")

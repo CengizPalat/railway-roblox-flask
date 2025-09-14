@@ -41,11 +41,11 @@ class RobloxVerificationSolver:
         
         if self.api_key:
             try:
-                from python2captcha import TwoCaptcha
+                from python_2captcha import TwoCaptcha
                 self.solver = TwoCaptcha(self.api_key)
                 logger.info(f"✅ 2Captcha solver initialized successfully with API key: {self.api_key[:8]}...")
             except ImportError:
-                logger.error("❌ python2captcha not installed - pip install python-2captcha==1.1.3")
+                logger.error("❌ python_2captcha not installed - pip install python-2captcha==1.1.0")
             except Exception as e:
                 logger.error(f"❌ Failed to initialize 2Captcha: {str(e)}")
         else:

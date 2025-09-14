@@ -7,11 +7,11 @@ click==8.1.7
 itsdangerous==2.1.2
 blinker==1.7.0
 
-# Flask CORS for browser testing
-flask-cors==4.0.0
-
 # WSGI server for production deployment
 gunicorn==21.2.0
+
+# CORS support for browser testing
+flask-cors==4.0.0
 
 # Selenium for REMOTE WebDriver (no local Chrome needed)
 selenium==4.15.2

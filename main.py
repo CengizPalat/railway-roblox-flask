@@ -32,7 +32,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for browser testing
 
 class RobloxVerificationSolver:
     def __init__(self, api_key=None):
@@ -796,6 +795,11 @@ def home():
         "api_key_status": "Configured ✅",
         "api_key_preview": f"{analytics.verification_solver.api_key[:8]}...",
         "environment": os.getenv('RAILWAY_ENVIRONMENT', 'local'),
+        "testing_interface": {
+            "url": "/test",
+            "description": "🎯 CLICK HERE FOR EASY BROWSER TESTING",
+            "features": "Test all functionality with buttons - no command line needed!"
+        },
         "package_info": {
             "captcha_package": "2captcha-python (official)",
             "import_syntax": "from twocaptcha import TwoCaptcha",

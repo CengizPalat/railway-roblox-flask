@@ -2,7 +2,7 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "gunicorn main:app --bind 0.0.0.0:$PORT --workers 1 --timeout 300 --max-requests 1000 --preload"
+startCommand = "gunicorn main:app --bind 0.0.0.0:$PORT --workers 1 --timeout 300"
 healthcheckPath = "/health"
 healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"
@@ -11,4 +11,3 @@ restartPolicyMaxRetries = 5
 [env]
 PYTHONUNBUFFERED = "1"
 RAILWAY_ENVIRONMENT = "production"
-PORT = "5000"

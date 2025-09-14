@@ -367,7 +367,7 @@ class RobloxAnalytics:
             }
     
     def login_to_roblox(self, driver):
-        """Login to Roblox with 2Captcha verification handling"""
+        """Login to Roblox with 2Captcha verification handling and cookie banner dismissal"""
         try:
             logger.info("🔐 Starting Roblox login with verification handling...")
             
@@ -375,13 +375,57 @@ class RobloxAnalytics:
             driver.get("https://www.roblox.com/login")
             time.sleep(5)
             
-            # Fill login form
+            # Step 1: Handle cookie banner if present
             try:
+                logger.info("🍪 Checking for cookie banner...")
+                
+                # Common cookie banner selectors
+                cookie_selectors = [
+                    "button[id*='onetrust-accept']",
+                    "button[class*='accept']",
+                    "button[class*='cookie']",
+                    ".cookie-banner button",
+                    "#cookie-banner button",
+                    "[data-testid*='cookie'] button",
+                    "button:contains('Accept')",
+                    "button:contains('OK')",
+                    "button:contains('I Accept')"
+                ]
+                
+                for selector in cookie_selectors:
+                    try:
+                        cookie_button = driver.find_element(By.CSS_SELECTOR, selector)
+                        if cookie_button.is_displayed():
+                            logger.info(f"🍪 Found cookie banner, clicking: {selector}")
+                            cookie_button.click()
+                            time.sleep(2)
+                            break
+                    except:
+                        continue
+                
+                # Alternative: Try to dismiss any overlay
+                try:
+                    overlays = driver.find_elements(By.CSS_SELECTOR, ".cookie-banner-bg, .overlay, .modal-backdrop")
+                    for overlay in overlays:
+                        if overlay.is_displayed():
+                            logger.info("🍪 Removing cookie banner overlay with JavaScript")
+                            driver.execute_script("arguments[0].style.display = 'none';", overlay)
+                except:
+                    pass
+                    
+            except Exception as e:
+                logger.info(f"🍪 Cookie banner handling: {str(e)}")
+            
+            # Step 2: Fill login form
+            try:
+                logger.info("🔍 Looking for login form elements...")
                 username_field = WebDriverWait(driver, 10).until(
                     EC.presence_of_element_located((By.ID, "login-username"))
                 )
                 password_field = driver.find_element(By.ID, "login-password")
                 login_button = driver.find_element(By.ID, "login-button")
+                
+                logger.info("✅ Found all login form elements")
                 
                 # Clear and fill fields
                 username_field.clear()
@@ -392,82 +436,136 @@ class RobloxAnalytics:
                 password_field.send_keys(self.password)
                 time.sleep(2)
                 
-                # Click login
-                logger.info("🚀 Submitting login credentials...")
-                login_button.click()
-                time.sleep(8)
+                logger.info("✅ Credentials entered")
                 
-                # Check for verification challenge
-                page_text = driver.find_element(By.TAG_NAME, "body").text.lower()
-                verification_indicators = ["verification", "start puzzle", "captcha", "challenge"]
-                
-                if any(indicator in page_text for indicator in verification_indicators):
-                    logger.info("🧩 Verification challenge detected - attempting automated solving...")
-                    verification_result = self.verification_solver.solve_roblox_verification(driver)
-                    
-                    if verification_result.get("success"):
-                        logger.info("✅ Verification solved successfully!")
-                        
-                        # Wait for redirect after verification
-                        time.sleep(5)
-                        
-                        # Check if login succeeded
-                        current_url = driver.current_url.lower()
-                        if "dashboard" in current_url or "home" in current_url:
-                            logger.info("✅ Login successful after verification!")
-                            self.last_login = datetime.now()
-                            return {
-                                "success": True,
-                                "message": "Login successful with verification solving",
-                                "verification_method": verification_result.get("method"),
-                                "cost": verification_result.get("cost", "Unknown")
-                            }
-                        else:
-                            logger.warning("⚠️ Verification solved but login may have failed")
-                            return {
-                                "success": False,
-                                "message": "Verification solved but not redirected to dashboard",
-                                "current_url": driver.current_url
-                            }
-                    else:
-                        logger.error("❌ Verification solving failed")
-                        return {
-                            "success": False,
-                            "message": "Verification challenge could not be solved",
-                            "verification_error": verification_result.get("error"),
-                            "methods_tried": verification_result.get("methods_tried", [])
-                        }
-                else:
-                    # Check if login succeeded without verification
-                    current_url = driver.current_url.lower()
-                    if "dashboard" in current_url or "home" in current_url:
-                        logger.info("✅ Login successful without verification!")
-                        self.last_login = datetime.now()
-                        return {"success": True, "message": "Login successful without verification"}
-                    else:
-                        # Check for login errors
-                        error_indicators = ["incorrect", "invalid", "error", "try again"]
-                        if any(error in page_text for error in error_indicators):
-                            return {
-                                "success": False, 
-                                "message": "Login failed - credentials may be incorrect",
-                                "page_text_sample": page_text[:200]
-                            }
-                        else:
-                            return {
-                                "success": False,
-                                "message": "Login status unclear",
-                                "current_url": driver.current_url,
-                                "page_text_sample": page_text[:200]
-                            }
-                            
             except TimeoutException:
                 return {
                     "success": False,
                     "message": "Login form not found - page may not have loaded correctly",
                     "current_url": driver.current_url
                 }
+            
+            # Step 3: Click login button with multiple strategies
+            try:
+                logger.info("🚀 Attempting to click login button...")
                 
+                # Strategy 1: Regular click
+                try:
+                    login_button.click()
+                    logger.info("✅ Login button clicked successfully")
+                except Exception as click_error:
+                    logger.info(f"⚠️ Regular click failed: {click_error}")
+                    
+                    # Strategy 2: JavaScript click
+                    try:
+                        logger.info("🔧 Trying JavaScript click...")
+                        driver.execute_script("arguments[0].click();", login_button)
+                        logger.info("✅ JavaScript click successful")
+                    except Exception as js_error:
+                        logger.info(f"⚠️ JavaScript click failed: {js_error}")
+                        
+                        # Strategy 3: ActionChains click
+                        try:
+                            logger.info("🔧 Trying ActionChains click...")
+                            ActionChains(driver).move_to_element(login_button).click().perform()
+                            logger.info("✅ ActionChains click successful")
+                        except Exception as action_error:
+                            logger.info(f"⚠️ ActionChains click failed: {action_error}")
+                            
+                            # Strategy 4: Submit form
+                            try:
+                                logger.info("🔧 Trying form submission...")
+                                driver.execute_script("document.querySelector('#login-username').form.submit();")
+                                logger.info("✅ Form submission successful")
+                            except Exception as submit_error:
+                                logger.error(f"❌ All click strategies failed: {submit_error}")
+                                return {
+                                    "success": False,
+                                    "message": "Could not click login button - all strategies failed",
+                                    "errors": {
+                                        "regular_click": str(click_error),
+                                        "javascript_click": str(js_error),
+                                        "actionchains_click": str(action_error),
+                                        "form_submit": str(submit_error)
+                                    }
+                                }
+                
+                # Wait for login response
+                logger.info("⏳ Waiting for login response...")
+                time.sleep(8)
+                
+            except Exception as e:
+                logger.error(f"❌ Login button interaction error: {str(e)}")
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "traceback": traceback.format_exc()
+                }
+            
+            # Step 4: Check for verification challenge
+            page_text = driver.find_element(By.TAG_NAME, "body").text.lower()
+            verification_indicators = ["verification", "start puzzle", "captcha", "challenge"]
+            
+            if any(indicator in page_text for indicator in verification_indicators):
+                logger.info("🧩 Verification challenge detected - attempting automated solving...")
+                verification_result = self.verification_solver.solve_roblox_verification(driver)
+                
+                if verification_result.get("success"):
+                    logger.info("✅ Verification solved successfully!")
+                    
+                    # Wait for redirect after verification
+                    time.sleep(5)
+                    
+                    # Check if login succeeded
+                    current_url = driver.current_url.lower()
+                    if "dashboard" in current_url or "home" in current_url:
+                        logger.info("✅ Login successful after verification!")
+                        self.last_login = datetime.now()
+                        return {
+                            "success": True,
+                            "message": "Login successful with verification solving",
+                            "verification_method": verification_result.get("method"),
+                            "cost": verification_result.get("cost", "Unknown")
+                        }
+                    else:
+                        logger.warning("⚠️ Verification solved but login may have failed")
+                        return {
+                            "success": False,
+                            "message": "Verification solved but not redirected to dashboard",
+                            "current_url": driver.current_url
+                        }
+                else:
+                    logger.error("❌ Verification solving failed")
+                    return {
+                        "success": False,
+                        "message": "Verification challenge could not be solved",
+                        "verification_error": verification_result.get("error"),
+                        "methods_tried": verification_result.get("methods_tried", [])
+                    }
+            else:
+                # Check if login succeeded without verification
+                current_url = driver.current_url.lower()
+                if "dashboard" in current_url or "home" in current_url or "create.roblox.com" in current_url:
+                    logger.info("✅ Login successful without verification!")
+                    self.last_login = datetime.now()
+                    return {"success": True, "message": "Login successful without verification"}
+                else:
+                    # Check for login errors
+                    error_indicators = ["incorrect", "invalid", "error", "try again"]
+                    if any(error in page_text for error in error_indicators):
+                        return {
+                            "success": False, 
+                            "message": "Login failed - credentials may be incorrect",
+                            "page_text_sample": page_text[:200]
+                        }
+                    else:
+                        return {
+                            "success": False,
+                            "message": "Login status unclear",
+                            "current_url": driver.current_url,
+                            "page_text_sample": page_text[:200]
+                        }
+                    
         except Exception as e:
             logger.error(f"❌ Login error: {str(e)}")
             return {
@@ -1572,4 +1670,5 @@ if __name__ == '__main__':
     logger.info(f"💰 Your $3 deposit should solve ~1500-3000 verifications!")
     
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
+
 

@@ -786,7 +786,7 @@ def home():
     """Root endpoint with system information"""
     return jsonify({
         "status": "🎯 Roblox Analytics API - Remote Selenium + 2Captcha",
-        "version": "6.0.0 - Remote WebDriver",
+        "version": "6.0.1 - Remote WebDriver + Official 2Captcha",
         "python_version": "3.12 Compatible",
         "selenium_mode": "Remote WebDriver ✅",
         "selenium_url": analytics.selenium_url,

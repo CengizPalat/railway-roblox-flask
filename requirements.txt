@@ -7,6 +7,9 @@ click==8.1.7
 itsdangerous==2.1.2
 blinker==1.7.0
 
+# Flask CORS for browser testing
+flask-cors==4.0.0
+
 # WSGI server for production deployment
 gunicorn==21.2.0
 

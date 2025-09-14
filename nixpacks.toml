@@ -21,37 +21,13 @@ cmds = [
 [phases.setup]
 nixPkgs = [
     "python312",
-    "python312Packages.pip",
-    "python312Packages.setuptools", 
+    "python312Packages.pip", 
+    "python312Packages.setuptools",
     "python312Packages.wheel",
     "chromium",
-    "chromedriver",
-    "xvfb-run",
-    "fontconfig",
-    "freetype",
-    "glib",
-    "gtk3",
-    "harfbuzz",
-    "icu",
-    "libdrm",
-    "libjpeg",
-    "libpng",
-    "libtiff",
-    "libwebp",
-    "mesa",
-    "nspr",
-    "nss",
-    "pango",
-    "zlib",
-    "libgcc",
-    "glibc",
-    "gcc",
-    "openssl",
-    "ca-certificates"
+    "chromedriver"
 ]
 
 [variables]
-CHROME_BINARY_LOCATION = "/nix/store/*/bin/chromium"
-CHROMEDRIVER_PATH = "/nix/store/*/bin/chromedriver"
 PYTHONUNBUFFERED = "1"
 RAILWAY_ENVIRONMENT = "production"

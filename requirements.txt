@@ -10,8 +10,7 @@ blinker==1.7.0
 # WSGI server for production deployment
 gunicorn==21.2.0
 
-# SeleniumBase and browser automation (Python 3.12 compatible)
-seleniumbase==4.21.6
+# Selenium for REMOTE WebDriver (no local Chrome needed)
 selenium==4.15.2
 
 # 2Captcha service for automated Roblox verification solving
@@ -24,7 +23,7 @@ certifi==2023.11.17
 charset-normalizer==3.3.2
 idna==3.6
 
-# Python 3.12 compatibility essentials (NO DISTUTILS)
+# Python 3.12 compatibility essentials
 setuptools==69.0.0
 wheel==0.42.0
 pip==23.3.2
@@ -38,18 +37,14 @@ six==1.16.0
 # Enhanced logging and monitoring
 python-json-logger==2.0.7
 
-# ===== 2CAPTCHA VERIFICATION SOLVING SETUP =====
-# This requirements.txt includes python-2captcha for automated
-# Roblox verification puzzle solving with API key: b44a6e6b17d4b75d834aa5820db113ff
+# ===== REMOTE SELENIUM + 2CAPTCHA SETUP =====
+# This Flask service connects to remote Selenium at:
+# https://standalone-chrome-production-eb24.up.railway.app/wd/hub
 # 
 # Features enabled:
-# ✅ FunCaptcha (Arkose Labs) solving
-# ✅ Image puzzle solving (dice, cubes, cards)
-# ✅ Automated human worker solutions
+# ✅ Remote WebDriver connection (no local Chrome needed)
+# ✅ 2Captcha verification solving (FunCaptcha + Image puzzles)
+# ✅ Lightweight Flask service 
 # ✅ 90%+ success rate for Roblox verifications
 # ✅ Cost: ~$0.001-$0.002 per solve
 # ✅ Your $3 deposit = ~1500-3000 solves
-#
-# All packages verified compatible with Python 3.12
-# SeleniumBase 4.21.6+ eliminates distutils dependency issues
-# UC mode enabled for Cloudflare bypass

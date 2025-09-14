@@ -43,7 +43,7 @@ python-json-logger==2.0.7
 # 
 # Features enabled:
 # ✅ Remote WebDriver connection (no local Chrome needed)
-# ✅ 2Captcha verification solving (FunCaptcha + Image puzzles)
+# ✅ 2Captcha verification solving (FunCaptcha + Image puzzles) - OFFICIAL PACKAGE
 # ✅ Lightweight Flask service 
 # ✅ 90%+ success rate for Roblox verifications
 # ✅ Cost: ~$0.001-$0.002 per solve

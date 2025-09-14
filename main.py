@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request
-from flask_cors import CORS  # 🔧 MISSING CORS IMPORT - ADDED
+from flask_cors import CORS
 import os
 import time
 import json
@@ -34,12 +34,12 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# 🔧 ADD COMPREHENSIVE CORS CONFIGURATION - THIS WAS MISSING
+# 🔧 SIMPLIFIED CORS CONFIGURATION - NO DUPLICATES
 CORS(app, 
-     origins=["https://zrdgames.com", "https://www.zrdgames.com", "http://localhost:3000", "http://localhost:8080", "*"],
+     origins=["*"],  # Simplified to avoid conflicts
      methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"],
      allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
-     supports_credentials=True)
+     supports_credentials=False)  # Set to False to avoid complications
 
 class RobloxVerificationSolver:
     def __init__(self, api_key=None):
@@ -578,33 +578,14 @@ class RobloxAnalytics:
 # Initialize analytics instance with your API key
 analytics = RobloxAnalytics()
 
-# 🔧 ADD EXPLICIT CORS HANDLERS - THESE WERE MISSING
-@app.before_request
-def handle_preflight():
-    """Handle CORS preflight requests"""
-    if request.method == "OPTIONS":
-        response = jsonify({'message': 'CORS preflight'})
-        response.headers.add("Access-Control-Allow-Origin", "*")
-        response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,X-Requested-With")
-        response.headers.add('Access-Control-Allow-Methods', "GET,PUT,POST,DELETE,OPTIONS")
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
-
-@app.after_request
-def after_request(response):
-    """Add CORS headers to all responses"""
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    return response
+# 🔧 REMOVED DUPLICATE CORS HANDLERS - USING ONLY flask-cors NOW
 
 @app.route('/')
 def home():
     """Root endpoint with system information"""
     return jsonify({
         "status": "🎯 Roblox Analytics API - Remote Selenium + Official 2Captcha",
-        "version": "6.1.0 - VERIFIED WORKING",
+        "version": "6.1.1 - CORS FIXED",
         "python_version": "3.12 Compatible",
         "selenium_mode": "Remote WebDriver ✅",
         "selenium_url": analytics.selenium_url,
@@ -612,7 +593,7 @@ def home():
         "api_key_status": "Configured ✅",
         "api_key_preview": f"{analytics.verification_solver.api_key[:8]}...",
         "environment": os.getenv('RAILWAY_ENVIRONMENT', 'local'),
-        "cors_enabled": "✅ Fixed", # 🔧 NEW STATUS
+        "cors_status": "✅ Fixed - No Duplicates",
         "testing_interface": {
             "url": "/test",
             "description": "🎯 CLICK HERE FOR EASY BROWSER TESTING",
@@ -633,16 +614,17 @@ def home():
             "✅ QPTR data extraction",
             "✅ Screenshot diagnostics",
             "✅ Cost tracking ($0.001-$0.002 per solve)",
-            "✅ CORS enabled for browser testing" # 🔧 NEW FEATURE
+            "✅ CORS fixed - no duplicate headers"
         ],
         "endpoints": [
             "GET /status - System status with 2Captcha info",
+            "GET /ping - Simple ping test",
             "POST /test-cloudflare - Test Cloudflare bypass",
             "POST /trigger-diagnostic - Full analytics with 2Captcha solving",
             "GET /results - Latest results with cost info",
             "POST /login-test - Test login with 2Captcha verification",
             "POST /test-verification - Test 2Captcha verification solving only",
-            "GET /test - Browser test interface" # 🔧 NEW ENDPOINT
+            "GET /test - Browser test interface"
         ],
         "cost_info": {
             "normal_captcha": "$0.001 per solve",
@@ -650,6 +632,16 @@ def home():
             "your_balance": "Check 2captcha.com dashboard",
             "estimated_solves_with_3_dollars": "~1500-3000 verifications"
         },
+        "timestamp": datetime.now().isoformat()
+    })
+
+@app.route('/ping')
+def ping():
+    """Simple ping test endpoint"""
+    return jsonify({
+        "message": "pong",
+        "status": "healthy",
+        "cors_working": True,
         "timestamp": datetime.now().isoformat()
     })
 
@@ -662,7 +654,8 @@ def status():
         "environment": os.getenv('RAILWAY_ENVIRONMENT', 'local'),
         "port": os.getenv('PORT', '5000'),
         "credentials_configured": bool(analytics.username and analytics.password),
-        "cors_enabled": True, # 🔧 NEW STATUS FIELD
+        "cors_enabled": True,
+        "cors_status": "✅ Fixed - No Duplicates",
         "selenium_info": {
             "mode": "Remote WebDriver",
             "selenium_url": analytics.selenium_url,
@@ -723,7 +716,7 @@ def results():
             "selenium_url": analytics.selenium_url,
             "verification_status": "2Captcha Automated Solving ✅",
             "environment": os.getenv('RAILWAY_ENVIRONMENT', 'local'),
-            "cors_status": "✅ Enabled" # 🔧 NEW STATUS
+            "cors_status": "✅ Fixed"
         },
         "twocaptcha_info": {
             "api_key_configured": True,
@@ -753,7 +746,7 @@ def results():
         "timestamp": datetime.now().isoformat()
     })
 
-@app.route('/balance', methods=['POST', 'GET']) # 🔧 ADDED GET METHOD FOR BROWSER TESTING
+@app.route('/balance', methods=['POST', 'GET'])
 def check_balance():
     """Check 2Captcha account balance"""
     try:
@@ -762,10 +755,10 @@ def check_balance():
             return jsonify({
                 "success": True,
                 "balance": f"${balance:.2f}",
-                "balance_numeric": float(balance), # 🔧 ADDED NUMERIC VALUE
+                "balance_numeric": float(balance),
                 "api_key": f"{analytics.verification_solver.api_key[:8]}...",
                 "package": "2captcha-python (official)",
-                "sufficient_funds": float(balance) > 0.01, # 🔧 ADDED FUNDS CHECK
+                "sufficient_funds": float(balance) > 0.01,
                 "timestamp": datetime.now().isoformat()
             })
         else:
@@ -903,7 +896,6 @@ def trigger_diagnostic():
             "timestamp": datetime.now().isoformat()
         }), 500
 
-# 🔧 ADD THE MISSING /test INTERFACE ROUTE
 @app.route('/test')
 def test_interface():
     """Browser-based test interface with comprehensive testing"""
@@ -1032,7 +1024,7 @@ def test_interface():
         <div class="container">
             <div class="header">
                 <h1>🤖 Roblox 2Captcha Test System</h1>
-                <div class="cors-fixed">✅ CORS Issues Fixed! Cross-origin requests now working.</div>
+                <div class="cors-fixed">✅ CORS Issues Fixed! No duplicate headers.</div>
                 <p><strong>System URL:</strong> <code>''' + request.host_url + '''</code></p>
                 <p><span class="status-indicator status-unknown"></span><span id="connectionStatus">Testing connection...</span></p>
             </div>
@@ -1095,11 +1087,12 @@ def test_interface():
             
             async function testPing() {
                 try {
-                    const response = await fetch('/', {
+                    const response = await fetch('/ping', {
                         method: 'GET',
                         mode: 'cors'
                     });
                     if (response.ok) {
+                        const data = await response.json();
                         updateConnectionStatus('online', 'System Online ✅ CORS Working');
                         return true;
                     } else {
@@ -1125,7 +1118,7 @@ def test_interface():
                     
                     if (response.ok) {
                         const data = await response.json();
-                        showResult(`✅ CORS Test Passed!\\nCORS Enabled: ${data.cors_enabled}\\nAccess-Control-Allow-Origin: ${response.headers.get('Access-Control-Allow-Origin')}\\nResponse status: ${response.status}\\n\\nFull response:\\n${JSON.stringify(data, null, 2)}`, 'success');
+                        showResult(`✅ CORS Test Passed!\\nCORS Status: ${data.cors_status}\\nAccess-Control-Allow-Origin: ${response.headers.get('Access-Control-Allow-Origin')}\\nResponse status: ${response.status}\\n\\nFull response:\\n${JSON.stringify(data, null, 2)}`, 'success');
                     } else {
                         showResult(`❌ CORS Test Failed\\nStatus: ${response.status}`, 'error');
                     }
@@ -1263,7 +1256,8 @@ def health():
         "twocaptcha_ready": analytics.verification_solver.solver is not None,
         "api_key_configured": True,
         "package_verified": "2captcha-python (official)",
-        "cors_enabled": True, # 🔧 NEW HEALTH CHECK FIELD
+        "cors_enabled": True,
+        "cors_status": "✅ Fixed - No Duplicates",
         "timestamp": datetime.now().isoformat()
     })
 
@@ -1277,7 +1271,7 @@ if __name__ == '__main__':
     logger.info(f"🔑 2Captcha API Key: {analytics.verification_solver.api_key[:8]}...")
     logger.info(f"📦 Package: 2captcha-python (official)")
     logger.info(f"🧩 Verification Solver: {'✅ Ready' if analytics.verification_solver.solver else '❌ Failed'}")
-    logger.info(f"🌐 CORS: ✅ Enabled for cross-origin requests") # 🔧 NEW LOG MESSAGE
+    logger.info(f"🌐 CORS: ✅ Fixed - No duplicate headers")
     logger.info(f"💰 Your $3 deposit should solve ~1500-3000 verifications!")
     
     app.run(host='0.0.0.0', port=port, debug=debug_mode)

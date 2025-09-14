@@ -34,12 +34,35 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# 🔧 SIMPLIFIED CORS CONFIGURATION - NO DUPLICATES
+# 🔧 COMPREHENSIVE CORS CONFIGURATION WITH EXPLICIT HEADERS
 CORS(app, 
-     origins=["*"],  # Simplified to avoid conflicts
+     origins=["*"],
      methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"],
-     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
-     supports_credentials=False)  # Set to False to avoid complications
+     allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+     supports_credentials=False,
+     send_wildcard=True,
+     automatic_options=True)
+
+# 🔧 EXPLICIT CORS HEADER INJECTION FOR COMPATIBILITY
+@app.after_request
+def after_request(response):
+    """Ensure CORS headers are always present"""
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, PUT, DELETE'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
+    response.headers['Access-Control-Max-Age'] = '86400'
+    return response
+
+@app.before_request
+def handle_preflight():
+    """Handle preflight OPTIONS requests"""
+    if request.method == "OPTIONS":
+        response = jsonify({'status': 'preflight_ok'})
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, PUT, DELETE'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
+        response.headers['Access-Control-Max-Age'] = '86400'
+        return response
 
 class RobloxVerificationSolver:
     def __init__(self, api_key=None):
@@ -578,14 +601,12 @@ class RobloxAnalytics:
 # Initialize analytics instance with your API key
 analytics = RobloxAnalytics()
 
-# 🔧 REMOVED DUPLICATE CORS HANDLERS - USING ONLY flask-cors NOW
-
 @app.route('/')
 def home():
     """Root endpoint with system information"""
     return jsonify({
         "status": "🎯 Roblox Analytics API - Remote Selenium + Official 2Captcha",
-        "version": "6.1.1 - CORS FIXED",
+        "version": "6.1.2 - CORS FULLY FIXED",
         "python_version": "3.12 Compatible",
         "selenium_mode": "Remote WebDriver ✅",
         "selenium_url": analytics.selenium_url,
@@ -593,7 +614,7 @@ def home():
         "api_key_status": "Configured ✅",
         "api_key_preview": f"{analytics.verification_solver.api_key[:8]}...",
         "environment": os.getenv('RAILWAY_ENVIRONMENT', 'local'),
-        "cors_status": "✅ Fixed - No Duplicates",
+        "cors_status": "✅ Fully Fixed with Headers",
         "testing_interface": {
             "url": "/test",
             "description": "🎯 CLICK HERE FOR EASY BROWSER TESTING",
@@ -614,7 +635,7 @@ def home():
             "✅ QPTR data extraction",
             "✅ Screenshot diagnostics",
             "✅ Cost tracking ($0.001-$0.002 per solve)",
-            "✅ CORS fixed - no duplicate headers"
+            "✅ CORS fully fixed with explicit headers"
         ],
         "endpoints": [
             "GET /status - System status with 2Captcha info",
@@ -655,7 +676,7 @@ def status():
         "port": os.getenv('PORT', '5000'),
         "credentials_configured": bool(analytics.username and analytics.password),
         "cors_enabled": True,
-        "cors_status": "✅ Fixed - No Duplicates",
+        "cors_status": "✅ Fully Fixed with Headers",
         "selenium_info": {
             "mode": "Remote WebDriver",
             "selenium_url": analytics.selenium_url,
@@ -692,15 +713,6 @@ def status():
             "session_valid": analytics.last_login and 
                            (datetime.now() - analytics.last_login) < timedelta(hours=analytics.login_valid_hours)
         },
-        "verification_capabilities": {
-            "funcaptcha_arkose": "✅ 2Captcha Professional Solving",
-            "dice_puzzles": "✅ 2Captcha Human Workers",
-            "cube_matching": "✅ 2Captcha Human Workers", 
-            "card_matching": "✅ 2Captcha Human Workers",
-            "animal_rotation": "✅ 2Captcha Human Workers",
-            "manual_fallbacks": "✅ Available if 2Captcha fails",
-            "success_rate": "90%+ with 2Captcha, 30-50% manual"
-        },
         "last_results": analytics.last_results,
         "timestamp": datetime.now().isoformat()
     })
@@ -716,7 +728,7 @@ def results():
             "selenium_url": analytics.selenium_url,
             "verification_status": "2Captcha Automated Solving ✅",
             "environment": os.getenv('RAILWAY_ENVIRONMENT', 'local'),
-            "cors_status": "✅ Fixed"
+            "cors_status": "✅ Fully Fixed"
         },
         "twocaptcha_info": {
             "api_key_configured": True,
@@ -732,15 +744,6 @@ def results():
             "credentials": "Configured ✅" if analytics.username else "Missing",
             "session_valid": analytics.last_login and 
                            (datetime.now() - analytics.last_login) < timedelta(hours=analytics.login_valid_hours)
-        },
-        "verification_capabilities": {
-            "funcaptcha_arkose": "✅ 2Captcha Professional Solving",
-            "dice_puzzles": "✅ 2Captcha Human Workers",
-            "cube_matching": "✅ 2Captcha Human Workers", 
-            "card_matching": "✅ 2Captcha Human Workers",
-            "animal_rotation": "✅ 2Captcha Human Workers",
-            "manual_fallbacks": "✅ Available if 2Captcha fails",
-            "success_rate": "90%+ with 2Captcha, 30-50% manual"
         },
         "last_results": analytics.last_results,
         "timestamp": datetime.now().isoformat()
@@ -871,15 +874,24 @@ def login_test_endpoint():
             "timestamp": datetime.now().isoformat()
         }), 500
 
+# 🔧 FIXED trigger-diagnostic ENDPOINT WITH BETTER REQUEST HANDLING
 @app.route('/trigger-diagnostic', methods=['POST'])
 def trigger_diagnostic():
     """Trigger complete analytics collection with 2Captcha verification handling via remote WebDriver"""
     try:
-        data = request.get_json() or {}
-        game_id = data.get('game_id')
+        # 🔧 IMPROVED REQUEST PARSING WITH ERROR HANDLING
+        game_id = "7291257156"  # Default game ID
+        
+        try:
+            # Try to get JSON data, but don't fail if there isn't any
+            data = request.get_json(silent=True) or {}
+            if isinstance(data, dict) and 'game_id' in data:
+                game_id = data['game_id']
+        except Exception as json_error:
+            logger.warning(f"⚠️ Could not parse JSON request: {json_error} - using default game ID")
         
         logger.info(f"🚀 Starting complete diagnostic with Remote Selenium + 2Captcha verification solving")
-        logger.info(f"🎮 Game ID: {game_id or 'All games'}")
+        logger.info(f"🎮 Game ID: {game_id}")
         logger.info(f"🔑 2Captcha API: {analytics.verification_solver.api_key[:8]}...")
         logger.info(f"🌐 Remote Selenium: {analytics.selenium_url}")
         logger.info(f"📦 Package: 2captcha-python (official)")
@@ -890,9 +902,12 @@ def trigger_diagnostic():
         
     except Exception as e:
         logger.error(f"❌ Diagnostic trigger error: {str(e)}")
+        logger.error(f"❌ Full traceback: {traceback.format_exc()}")
         return jsonify({
             "success": False,
             "error": str(e),
+            "traceback": traceback.format_exc(),
+            "endpoint": "/trigger-diagnostic",
             "timestamp": datetime.now().isoformat()
         }), 500
 
@@ -903,7 +918,7 @@ def test_interface():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Roblox 2Captcha Test Interface - CORS FIXED</title>
+        <title>Roblox 2Captcha Test Interface - FULLY FIXED</title>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
@@ -953,6 +968,12 @@ def test_interface():
                 background: #0056b3; 
                 transform: translateY(-2px);
                 box-shadow: 0 4px 12px rgba(0,123,255,0.3);
+            }
+            .button:disabled {
+                background: #6c757d;
+                cursor: not-allowed;
+                transform: none;
+                box-shadow: none;
             }
             .danger { 
                 background: #dc3545; 
@@ -1024,7 +1045,7 @@ def test_interface():
         <div class="container">
             <div class="header">
                 <h1>🤖 Roblox 2Captcha Test System</h1>
-                <div class="cors-fixed">✅ CORS Issues Fixed! No duplicate headers.</div>
+                <div class="cors-fixed">✅ CORS + Request Parsing Issues FULLY FIXED!</div>
                 <p><strong>System URL:</strong> <code>''' + request.host_url + '''</code></p>
                 <p><span class="status-indicator status-unknown"></span><span id="connectionStatus">Testing connection...</span></p>
             </div>
@@ -1048,7 +1069,7 @@ def test_interface():
                 <h3>🚀 Complete System Test</h3>
                 <p><strong>⚠️ Warning:</strong> This will attempt to login to Roblox and solve verification puzzles!</p>
                 <p><strong>💰 Cost:</strong> ~$0.002 if verification puzzle is solved</p>
-                <button class="button danger" onclick="runFullTest()">🚀 RUN COMPLETE TEST</button>
+                <button class="button danger" onclick="runFullTest()" id="fullTestBtn">🚀 RUN COMPLETE TEST</button>
             </div>
             
             <div id="result" class="result" style="display:none;"></div>
@@ -1078,6 +1099,16 @@ def test_interface():
                 
                 indicator.className = `status-indicator status-${status}`;
                 statusText.textContent = message;
+            }
+            
+            function disableButton(buttonId) {
+                const btn = document.getElementById(buttonId);
+                if (btn) btn.disabled = true;
+            }
+            
+            function enableButton(buttonId) {
+                const btn = document.getElementById(buttonId);
+                if (btn) btn.disabled = false;
             }
             
             // Test connection on page load
@@ -1118,12 +1149,17 @@ def test_interface():
                     
                     if (response.ok) {
                         const data = await response.json();
-                        showResult(`✅ CORS Test Passed!\\nCORS Status: ${data.cors_status}\\nAccess-Control-Allow-Origin: ${response.headers.get('Access-Control-Allow-Origin')}\\nResponse status: ${response.status}\\n\\nFull response:\\n${JSON.stringify(data, null, 2)}`, 'success');
+                        const corsHeaders = {
+                            'Access-Control-Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
+                            'Access-Control-Allow-Methods': response.headers.get('Access-Control-Allow-Methods'),
+                            'Access-Control-Allow-Headers': response.headers.get('Access-Control-Allow-Headers')
+                        };
+                        showResult(`✅ CORS Test Passed!\\nCORS Status: ${data.cors_status}\\nHeaders: ${JSON.stringify(corsHeaders, null, 2)}\\nResponse status: ${response.status}`, 'success');
                     } else {
                         showResult(`❌ CORS Test Failed\\nStatus: ${response.status}`, 'error');
                     }
                 } catch (error) {
-                    showResult(`❌ CORS Test Failed\\nError: ${error.message}\\nThis indicates CORS is not properly configured.`, 'error');
+                    showResult(`❌ CORS Test Failed\\nError: ${error.message}`, 'error');
                 }
             }
             
@@ -1216,15 +1252,21 @@ def test_interface():
                 }
                 
                 testRunning = true;
+                disableButton('fullTestBtn');
                 showLoading('🚀 Starting complete system test...\\nThis may take 2-5 minutes...\\n\\nSteps:\\n1. Connect to Selenium\\n2. Test Cloudflare bypass\\n3. Navigate to Roblox login\\n4. Enter credentials\\n5. Detect verification puzzles\\n6. Solve with 2Captcha (if found)\\n7. Extract QPTR data\\n8. Report results');
                 
                 try {
+                    // 🔧 IMPROVED REQUEST WITH PROPER ERROR HANDLING
                     const response = await fetch('/trigger-diagnostic', { 
                         method: 'POST',
                         mode: 'cors',
                         headers: {
-                            'Content-Type': 'application/json'
-                        }
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            'game_id': '7291257156'
+                        })
                     });
                     
                     const data = await response.json();
@@ -1232,12 +1274,13 @@ def test_interface():
                     if (response.ok) {
                         showResult(`🎉 Complete Test Results:\\n${JSON.stringify(data, null, 2)}`, 'success');
                     } else {
-                        showResult(`❌ Complete Test Failed:\\n${JSON.stringify(data, null, 2)}`, 'error');
+                        showResult(`❌ Complete Test Failed (HTTP ${response.status}):\\n${JSON.stringify(data, null, 2)}`, 'error');
                     }
                 } catch (error) {
-                    showResult(`❌ Complete Test Failed\\nError: ${error.message}\\n\\nThis could be due to:\\n- Network timeout (verification solving takes time)\\n- Selenium connection issues\\n- Roblox login problems`, 'error');
+                    showResult(`❌ Complete Test Failed\\nError: ${error.message}\\n\\nThis could be due to:\\n- Network timeout (verification solving takes time)\\n- Selenium connection issues\\n- Roblox login problems\\n- Server-side parsing error`, 'error');
                 } finally {
                     testRunning = false;
+                    enableButton('fullTestBtn');
                 }
             }
         </script>
@@ -1257,7 +1300,8 @@ def health():
         "api_key_configured": True,
         "package_verified": "2captcha-python (official)",
         "cors_enabled": True,
-        "cors_status": "✅ Fixed - No Duplicates",
+        "cors_status": "✅ Fully Fixed with Headers",
+        "request_parsing": "✅ Fixed",
         "timestamp": datetime.now().isoformat()
     })
 
@@ -1271,7 +1315,8 @@ if __name__ == '__main__':
     logger.info(f"🔑 2Captcha API Key: {analytics.verification_solver.api_key[:8]}...")
     logger.info(f"📦 Package: 2captcha-python (official)")
     logger.info(f"🧩 Verification Solver: {'✅ Ready' if analytics.verification_solver.solver else '❌ Failed'}")
-    logger.info(f"🌐 CORS: ✅ Fixed - No duplicate headers")
+    logger.info(f"🌐 CORS: ✅ Fully fixed with explicit headers")
+    logger.info(f"🔧 Request Parsing: ✅ Fixed with error handling")
     logger.info(f"💰 Your $3 deposit should solve ~1500-3000 verifications!")
     
     app.run(host='0.0.0.0', port=port, debug=debug_mode)

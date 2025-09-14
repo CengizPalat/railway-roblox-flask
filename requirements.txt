@@ -14,7 +14,7 @@ gunicorn==21.2.0
 selenium==4.15.2
 
 # 2Captcha service for automated Roblox verification solving
-python-2captcha==1.1.3
+python-2captcha==1.1.0
 
 # HTTP and networking
 requests==2.31.0

@@ -666,6 +666,193 @@ def ping():
         "timestamp": datetime.now().isoformat()
     })
 
+# 🔧 ADD THIS COMPLETE ENDPOINT TO YOUR main.py (after the /ping route)
+
+@app.route('/debug-selenium', methods=['GET', 'POST'])
+def debug_selenium():
+    """Debug the remote Selenium connection with detailed testing"""
+    try:
+        selenium_url = analytics.selenium_url
+        logger.info(f"🔍 Debugging Selenium connection to: {selenium_url}")
+        
+        debug_results = {
+            "selenium_url": selenium_url,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Test 1: Check if the Selenium service is reachable via HTTP
+        logger.info("🔍 Test 1: Checking Selenium service HTTP accessibility...")
+        try:
+            import requests
+            response = requests.get(f"{selenium_url}/status", timeout=10)
+            debug_results["http_test"] = {
+                "success": True,
+                "status_code": response.status_code,
+                "response_headers": dict(response.headers),
+                "response_text": response.text[:1000] if response.text else "No response text",
+                "response_json": response.json() if response.headers.get('content-type', '').startswith('application/json') else None
+            }
+            logger.info(f"✅ HTTP test successful: {response.status_code}")
+        except Exception as e:
+            debug_results["http_test"] = {
+                "success": False,
+                "error": str(e),
+                "error_type": type(e).__name__
+            }
+            logger.error(f"❌ HTTP test failed: {e}")
+        
+        # Test 2: Test Selenium hub endpoints
+        logger.info("🔍 Test 2: Testing Selenium hub endpoints...")
+        hub_endpoints = {}
+        test_endpoints = ["/status", "/sessions", "/wd/hub/status"]
+        
+        for endpoint in test_endpoints:
+            try:
+                import requests
+                resp = requests.get(f"{selenium_url.replace('/wd/hub', '')}{endpoint}", timeout=5)
+                hub_endpoints[endpoint] = {
+                    "status_code": resp.status_code,
+                    "content_type": resp.headers.get('content-type', 'unknown'),
+                    "response_size": len(resp.content),
+                    "response_preview": resp.text[:500] if resp.text else "No content"
+                }
+            except Exception as e:
+                hub_endpoints[endpoint] = {
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                }
+        
+        debug_results["hub_endpoints"] = hub_endpoints
+        
+        # Test 3: Try minimal Selenium connection
+        logger.info("🔍 Test 3: Testing minimal Selenium WebDriver connection...")
+        try:
+            from selenium.webdriver.chrome.options import Options
+            from selenium import webdriver
+            
+            # Minimal Chrome options
+            options = Options()
+            options.add_argument("--no-sandbox")
+            options.add_argument("--disable-dev-shm-usage")
+            options.add_argument("--headless=new")
+            options.add_argument("--disable-gpu")
+            
+            logger.info(f"🔗 Attempting connection to: {selenium_url}")
+            
+            # Try connection with detailed error capture
+            driver = webdriver.Remote(
+                command_executor=selenium_url,
+                options=options
+            )
+            
+            # Test basic operations
+            session_info = {
+                "session_id": driver.session_id,
+                "current_url": driver.current_url,
+                "title": driver.title,
+                "window_handles": len(driver.window_handles)
+            }
+            
+            # Try a simple navigation
+            driver.get("https://www.google.com")
+            navigation_test = {
+                "navigation_successful": True,
+                "final_url": driver.current_url,
+                "page_title": driver.title
+            }
+            
+            driver.quit()
+            
+            debug_results["selenium_connection"] = {
+                "success": True,
+                "session_info": session_info,
+                "navigation_test": navigation_test
+            }
+            logger.info("✅ Selenium connection successful!")
+            
+        except Exception as selenium_error:
+            debug_results["selenium_connection"] = {
+                "success": False,
+                "error": str(selenium_error),
+                "error_type": type(selenium_error).__name__,
+                "traceback": traceback.format_exc()
+            }
+            logger.error(f"❌ Selenium connection failed: {selenium_error}")
+        
+        # Test 4: Test with different Chrome options
+        logger.info("🔍 Test 4: Testing with alternative Chrome options...")
+        try:
+            options_alt = Options()
+            # More permissive options
+            options_alt.add_argument("--no-sandbox")
+            options_alt.add_argument("--disable-dev-shm-usage")
+            options_alt.add_argument("--disable-gpu")
+            options_alt.add_argument("--disable-web-security")
+            options_alt.add_argument("--headless=new")
+            options_alt.add_argument("--window-size=1920,1080")
+            
+            driver_alt = webdriver.Remote(
+                command_executor=selenium_url,
+                options=options_alt
+            )
+            
+            debug_results["alternative_options_test"] = {
+                "success": True,
+                "session_id": driver_alt.session_id
+            }
+            
+            driver_alt.quit()
+            logger.info("✅ Alternative options test successful!")
+            
+        except Exception as alt_error:
+            debug_results["alternative_options_test"] = {
+                "success": False,
+                "error": str(alt_error),
+                "error_type": type(alt_error).__name__
+            }
+            logger.error(f"❌ Alternative options test failed: {alt_error}")
+        
+        # Test 5: Check if the original get_remote_driver method works
+        logger.info("🔍 Test 5: Testing original get_remote_driver method...")
+        try:
+            with analytics.get_remote_driver() as driver:
+                debug_results["original_method_test"] = {
+                    "success": True,
+                    "session_id": driver.session_id,
+                    "current_url": driver.current_url
+                }
+            logger.info("✅ Original method test successful!")
+            
+        except Exception as original_error:
+            debug_results["original_method_test"] = {
+                "success": False,
+                "error": str(original_error),
+                "error_type": type(original_error).__name__,
+                "traceback": traceback.format_exc()
+            }
+            logger.error(f"❌ Original method test failed: {original_error}")
+        
+        return jsonify({
+            "debug_results": debug_results,
+            "summary": {
+                "selenium_service_running": debug_results.get("http_test", {}).get("success", False),
+                "basic_connection_works": debug_results.get("selenium_connection", {}).get("success", False),
+                "original_method_works": debug_results.get("original_method_test", {}).get("success", False),
+                "recommendation": "Check the failing test details above"
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Debug endpoint error: {str(e)}")
+        return jsonify({
+            "debug_error": {
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "traceback": traceback.format_exc(),
+                "timestamp": datetime.now().isoformat()
+            }
+        }), 500
+
 @app.route('/status')
 def status():
     """System status endpoint with 2Captcha and remote Selenium information"""
@@ -911,14 +1098,15 @@ def trigger_diagnostic():
             "timestamp": datetime.now().isoformat()
         }), 500
 
+
 @app.route('/test')
 def test_interface():
-    """Browser-based test interface with comprehensive testing"""
+    """Browser-based test interface with comprehensive testing including Selenium debug"""
     return '''
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Roblox 2Captcha Test Interface - FULLY FIXED</title>
+        <title>Roblox 2Captcha Test Interface - WITH SELENIUM DEBUG</title>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
@@ -946,6 +1134,14 @@ def test_interface():
             .cors-fixed {
                 background: #d4edda;
                 color: #155724;
+                padding: 10px;
+                border-radius: 5px;
+                margin: 10px 0;
+                font-weight: bold;
+            }
+            .debug-info {
+                background: #fff3cd;
+                color: #856404;
                 padding: 10px;
                 border-radius: 5px;
                 margin: 10px 0;
@@ -997,12 +1193,23 @@ def test_interface():
                 background: #e0a800;
                 box-shadow: 0 4px 12px rgba(255,193,7,0.3);
             }
+            .debug {
+                background: #6f42c1;
+            }
+            .debug:hover {
+                background: #5a2d91;
+                box-shadow: 0 4px 12px rgba(111,66,193,0.3);
+            }
             .test-section {
                 background: #f8f9fa;
                 padding: 20px;
                 margin: 20px 0;
                 border-radius: 10px;
                 border-left: 4px solid #007bff;
+            }
+            .debug-section {
+                background: #f8f5ff;
+                border-left-color: #6f42c1;
             }
             .result { 
                 margin: 20px 0; 
@@ -1011,7 +1218,7 @@ def test_interface():
                 border-radius: 8px; 
                 font-family: 'Courier New', monospace; 
                 white-space: pre-wrap; 
-                max-height: 400px;
+                max-height: 500px;
                 overflow-y: auto;
                 border: 1px solid #dee2e6;
             }
@@ -1046,6 +1253,7 @@ def test_interface():
             <div class="header">
                 <h1>🤖 Roblox 2Captcha Test System</h1>
                 <div class="cors-fixed">✅ CORS + Request Parsing Issues FULLY FIXED!</div>
+                <div class="debug-info">🔍 Now includes Selenium Connection Debugging</div>
                 <p><strong>System URL:</strong> <code>''' + request.host_url + '''</code></p>
                 <p><span class="status-indicator status-unknown"></span><span id="connectionStatus">Testing connection...</span></p>
             </div>
@@ -1056,6 +1264,13 @@ def test_interface():
                 <button class="button warning" onclick="checkBalance()">💰 Check Balance</button>
                 <button class="button" onclick="testPing()">🏓 Ping Test</button>
                 <button class="button" onclick="testCORS()">🌐 Test CORS</button>
+            </div>
+            
+            <div class="test-section debug-section">
+                <h3>🔍 Selenium Debug Tests</h3>
+                <p><strong>Debug the Selenium connection issue:</strong></p>
+                <button class="button debug" onclick="debugSelenium()">🔍 Debug Selenium Connection</button>
+                <button class="button debug" onclick="testSeleniumDirect()">🌐 Test Selenium URL Direct</button>
             </div>
             
             <div class="test-section">
@@ -1163,6 +1378,44 @@ def test_interface():
                 }
             }
             
+            async function debugSelenium() {
+                showLoading('🔍 Running comprehensive Selenium debug tests...\\nThis will test HTTP connectivity, service endpoints, and WebDriver connection...');
+                try {
+                    const response = await fetch('/debug-selenium', { 
+                        method: 'GET',
+                        mode: 'cors'
+                    });
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        showResult(`🔍 Selenium Debug Results:\\n${JSON.stringify(data, null, 2)}`, 'success');
+                    } else {
+                        showResult(`❌ Selenium Debug Failed:\\n${JSON.stringify(data, null, 2)}`, 'error');
+                    }
+                } catch (error) {
+                    showResult(`❌ Selenium Debug Failed\\nError: ${error.message}`, 'error');
+                }
+            }
+            
+            async function testSeleniumDirect() {
+                showLoading('Testing Selenium service URL directly...');
+                try {
+                    // Test the Selenium service directly
+                    const seleniumUrl = 'https://standalone-chrome-production-eb24.up.railway.app';
+                    const statusUrl = seleniumUrl + '/wd/hub/status';
+                    
+                    const response = await fetch(statusUrl, {
+                        method: 'GET',
+                        mode: 'cors'
+                    });
+                    
+                    const data = await response.json();
+                    showResult(`🌐 Direct Selenium Test:\\nURL: ${statusUrl}\\nStatus: ${response.status}\\nResponse:\\n${JSON.stringify(data, null, 2)}`, response.ok ? 'success' : 'error');
+                } catch (error) {
+                    showResult(`❌ Direct Selenium Test Failed\\nError: ${error.message}\\nThis might indicate the Selenium service is not responding properly.`, 'error');
+                }
+            }
+            
             async function checkStatus() {
                 showLoading('Checking system status...');
                 try {
@@ -1256,7 +1509,6 @@ def test_interface():
                 showLoading('🚀 Starting complete system test...\\nThis may take 2-5 minutes...\\n\\nSteps:\\n1. Connect to Selenium\\n2. Test Cloudflare bypass\\n3. Navigate to Roblox login\\n4. Enter credentials\\n5. Detect verification puzzles\\n6. Solve with 2Captcha (if found)\\n7. Extract QPTR data\\n8. Report results');
                 
                 try {
-                    // 🔧 IMPROVED REQUEST WITH PROPER ERROR HANDLING
                     const response = await fetch('/trigger-diagnostic', { 
                         method: 'POST',
                         mode: 'cors',
@@ -1320,3 +1572,4 @@ if __name__ == '__main__':
     logger.info(f"💰 Your $3 deposit should solve ~1500-3000 verifications!")
     
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
+

@@ -32,6 +32,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for browser testing
 
 class RobloxVerificationSolver:
     def __init__(self, api_key=None):

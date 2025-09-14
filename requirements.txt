@@ -13,8 +13,8 @@ gunicorn==21.2.0
 # Selenium for REMOTE WebDriver (no local Chrome needed)
 selenium==4.15.2
 
-# 2Captcha service for automated Roblox verification solving
-python-2captcha==1.1.0
+# 2Captcha service - OFFICIAL PACKAGE (verified from all tutorials)
+2captcha-python
 
 # HTTP and networking
 requests==2.31.0
@@ -37,13 +37,13 @@ six==1.16.0
 # Enhanced logging and monitoring
 python-json-logger==2.0.7
 
-# ===== REMOTE SELENIUM + 2CAPTCHA SETUP =====
-# This Flask service connects to remote Selenium at:
-# https://standalone-chrome-production-eb24.up.railway.app/wd/hub
+# ===== VERIFIED 2CAPTCHA SETUP =====
+# Package: 2captcha-python (official from 2captcha.com)
+# Import: from twocaptcha import TwoCaptcha
 # 
 # Features enabled:
 # ✅ Remote WebDriver connection (no local Chrome needed)
-# ✅ 2Captcha verification solving (FunCaptcha + Image puzzles) - OFFICIAL PACKAGE
+# ✅ 2Captcha verification solving (FunCaptcha + Image puzzles) 
 # ✅ Lightweight Flask service 
 # ✅ 90%+ success rate for Roblox verifications
 # ✅ Cost: ~$0.001-$0.002 per solve

@@ -1527,6 +1527,66 @@ def debug_enhanced_login():
             "traceback": traceback.format_exc()
         }), 500
 
+@app.route('/check-credentials-simple', methods=['POST'])
+def check_credentials_simple():
+    """🔍 Simple credential check"""
+    return jsonify({
+        "current_credentials": {
+            "username": analytics.username,
+            "password": f"{analytics.password[:3]}...{analytics.password[-3:]} (length: {len(analytics.password)})"
+        },
+        "manual_test_required": True,
+        "test_instructions": [
+            "1. Open https://www.roblox.com/login in a browser",
+            "2. Enter username: " + analytics.username,
+            "3. Enter the password (ask user for full password)",
+            "4. Check what error message appears",
+            "5. Report back the exact error message"
+        ],
+        "common_errors": {
+            "invalid_credentials": "Something went wrong. Please check your email/username and password.",
+            "account_banned": "Your account has been suspended.",
+            "account_deleted": "This account doesn't exist.",
+            "verification_required": "Please complete the verification challenge.",
+            "two_factor": "Please enter your two-step verification code."
+        },
+        "next_steps": {
+            "if_credentials_wrong": "We need to update credentials or create new alt account",
+            "if_account_banned": "We need to create a new alt account",
+            "if_verification_required": "We need to handle 2FA or verification",
+            "if_credentials_work": "The issue is with our automation, not credentials"
+        }
+    })
+
+@app.route('/debug-enhanced-login', methods=['POST'])
+def debug_enhanced_login():
+    """🔍 Enhanced login debugging with detailed form analysis"""
+    try:
+        with analytics.get_remote_driver() as driver:
+            # Navigate to login page
+            driver.get("https://www.roblox.com/login")
+            time.sleep(5)
+            
+            # Apply simple cookie removal
+            cookie_result = analytics.simple_cookie_removal(driver)
+            
+            # Run enhanced debugging
+            debug_result = analytics.enhanced_login_debug(driver)
+            debug_result["cookie_removal"] = cookie_result
+            debug_result["api_key_used"] = f"{analytics.verification_solver.api_key[:8]}..."
+            debug_result["selenium_url"] = analytics.selenium_url
+            debug_result["timestamp"] = datetime.now().isoformat()
+            
+            return jsonify(debug_result)
+            
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+            "note": "Enhanced debugging failed - try the simple credential check instead"
+        }), 500
+
 @app.route('/test-credentials', methods=['POST'])
 def test_credentials():
     """🔍 Test credential validity"""
@@ -1648,11 +1708,12 @@ def home():
         },
         "endpoints": [
             "GET /status - System status with fix details",
-            "GET /screenshot-viewer - Visual debugging interface",
+            "GET /screenshot-viewer - Visual debugging interface", 
             "POST /debug-region - Check server region",
             "POST /debug-login-with-screenshots - Full debug with fixes",
             "POST /debug-enhanced-login - NEW: Detailed form submission analysis",
-            "POST /test-credentials - NEW: Credential validation testing",
+            "POST /check-credentials-simple - NEW: Simple credential validation",
+            "POST /test-credentials - Credential validation testing",
             "POST /login-test - Test fixed login process",
             "POST /trigger-diagnostic - Complete analytics with fixes",
             "POST /test-api-auth - Test API authentication"

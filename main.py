@@ -900,6 +900,276 @@ class RobloxAnalytics:
                 "traceback": traceback.format_exc()
             }
 
+    def enhanced_login_debug(self, driver):
+        """🔍 ENHANCED: Debug the actual form submission process"""
+        try:
+            logger.info("🔍 Starting enhanced login debugging...")
+            
+            # Step 1: Analyze the complete form structure
+            form_analysis_js = """
+            const forms = document.querySelectorAll('form');
+            const analysis = [];
+            
+            forms.forEach((form, index) => {
+                const inputs = form.querySelectorAll('input');
+                const buttons = form.querySelectorAll('button');
+                
+                const formData = {
+                    index: index,
+                    action: form.action,
+                    method: form.method,
+                    inputs: [],
+                    buttons: [],
+                    hiddenFields: []
+                };
+                
+                inputs.forEach(input => {
+                    formData.inputs.push({
+                        type: input.type,
+                        name: input.name,
+                        id: input.id,
+                        placeholder: input.placeholder,
+                        required: input.required,
+                        value: input.value.substring(0, 10) + (input.value.length > 10 ? '...' : ''),
+                        classes: input.className
+                    });
+                    
+                    if (input.type === 'hidden') {
+                        formData.hiddenFields.push({
+                            name: input.name,
+                            value: input.value.substring(0, 20) + (input.value.length > 20 ? '...' : '')
+                        });
+                    }
+                });
+                
+                buttons.forEach(button => {
+                    formData.buttons.push({
+                        type: button.type,
+                        text: button.textContent.trim(),
+                        classes: button.className,
+                        disabled: button.disabled
+                    });
+                });
+                
+                analysis.push(formData);
+            });
+            
+            return analysis;
+            """
+            
+            form_analysis = driver.execute_script(form_analysis_js)
+            logger.info(f"📋 Found {len(form_analysis)} forms on the page")
+            
+            for i, form in enumerate(form_analysis):
+                logger.info(f"Form {i}: Action={form['action']}, Method={form['method']}")
+                logger.info(f"  Inputs: {len(form['inputs'])}, Buttons: {len(form['buttons'])}, Hidden: {len(form['hiddenFields'])}")
+                
+                if form['hiddenFields']:
+                    logger.info(f"  Hidden fields: {form['hiddenFields']}")
+            
+            # Step 2: Find the login form specifically
+            elements = self.find_login_elements(driver)
+            if not elements["success"]:
+                return {"success": False, "error": "Could not find login elements", "form_analysis": form_analysis}
+            
+            # Step 3: Fill credentials with detailed monitoring
+            logger.info("✍️ Filling credentials with monitoring...")
+            
+            username_field = elements["username_field"]
+            password_field = elements["password_field"]
+            login_button = elements["login_button"]
+            
+            # Clear and verify
+            username_field.clear()
+            time.sleep(0.5)
+            logger.info(f"Username field after clear: '{username_field.get_attribute('value')}'")
+            
+            # Type username character by character to ensure it works
+            for char in self.username:
+                username_field.send_keys(char)
+                time.sleep(0.1)
+            
+            username_value = username_field.get_attribute('value')
+            logger.info(f"Username field after typing: '{username_value}'")
+            
+            if username_value != self.username:
+                logger.warning(f"⚠️ Username mismatch! Expected '{self.username}', got '{username_value}'")
+            
+            # Same for password
+            password_field.clear()
+            time.sleep(0.5)
+            
+            for char in self.password:
+                password_field.send_keys(char)
+                time.sleep(0.1)
+            
+            password_length = len(password_field.get_attribute('value'))
+            logger.info(f"Password field length after typing: {password_length} (expected: {len(self.password)})")
+            
+            # Step 4: Check for additional required fields
+            additional_fields_js = """
+            const requiredFields = document.querySelectorAll('input[required]');
+            const emptyRequired = [];
+            
+            requiredFields.forEach(field => {
+                if (!field.value.trim()) {
+                    emptyRequired.push({
+                        type: field.type,
+                        name: field.name,
+                        id: field.id,
+                        placeholder: field.placeholder
+                    });
+                }
+            });
+            
+            return emptyRequired;
+            """
+            
+            empty_required = driver.execute_script(additional_fields_js)
+            if empty_required:
+                logger.warning(f"⚠️ Empty required fields found: {empty_required}")
+            
+            # Step 5: Monitor form submission
+            logger.info("🖱️ Preparing to submit form...")
+            
+            # Add form submission listener
+            form_submit_js = """
+            window.formSubmitted = false;
+            window.formSubmissionDetails = null;
+            
+            document.addEventListener('submit', function(e) {
+                window.formSubmitted = true;
+                window.formSubmissionDetails = {
+                    target: e.target.tagName,
+                    action: e.target.action,
+                    method: e.target.method,
+                    timestamp: new Date().toISOString()
+                };
+            });
+            
+            // Also monitor fetch/XHR requests
+            window.networkRequests = [];
+            const originalFetch = window.fetch;
+            window.fetch = function(...args) {
+                window.networkRequests.push({
+                    url: args[0],
+                    method: args[1]?.method || 'GET',
+                    timestamp: new Date().toISOString(),
+                    type: 'fetch'
+                });
+                return originalFetch.apply(this, args);
+            };
+            """
+            
+            driver.execute_script(form_submit_js)
+            
+            # Step 6: Submit the form
+            current_url_before = driver.current_url
+            logger.info(f"Current URL before submit: {current_url_before}")
+            
+            click_success = self.robust_click(login_button, driver)
+            if not click_success:
+                return {"success": False, "error": "Could not click login button"}
+            
+            # Step 7: Monitor what happened
+            time.sleep(3)  # Give it time to process
+            
+            # Check if form was actually submitted
+            submission_check = driver.execute_script("""
+            return {
+                formSubmitted: window.formSubmitted || false,
+                formDetails: window.formSubmissionDetails,
+                networkRequests: window.networkRequests || [],
+                currentUrl: window.location.href,
+                pageChanged: window.location.href !== arguments[0]
+            };
+            """, current_url_before)
+            
+            logger.info(f"📊 Submission analysis: {submission_check}")
+            
+            # Step 8: Wait and check for changes
+            time.sleep(5)
+            
+            current_url_after = driver.current_url
+            page_text = driver.find_element(By.TAG_NAME, "body").text.lower()
+            
+            # Step 9: Detailed error analysis
+            error_analysis = {
+                "url_changed": current_url_before != current_url_after,
+                "form_submitted": submission_check.get("formSubmitted", False),
+                "network_requests": len(submission_check.get("networkRequests", [])),
+                "current_url": current_url_after,
+                "page_indicators": {
+                    "still_has_login_form": "login" in page_text,
+                    "has_error_message": any(error in page_text for error in ["incorrect", "invalid", "error", "banned", "suspended"]),
+                    "has_verification": any(word in page_text for word in ["verification", "captcha", "challenge"]),
+                    "has_success_indicators": any(word in current_url_after for word in ["create", "dashboard", "home"])
+                }
+            }
+            
+            logger.info(f"🔍 Error analysis: {error_analysis}")
+            
+            return {
+                "success": error_analysis["url_changed"] or error_analysis["page_indicators"]["has_success_indicators"],
+                "form_analysis": form_analysis,
+                "submission_details": submission_check,
+                "error_analysis": error_analysis,
+                "empty_required_fields": empty_required,
+                "credentials_filled": {
+                    "username_correct": username_value == self.username,
+                    "password_length_correct": password_length == len(self.password)
+                },
+                "recommendations": self._generate_login_recommendations(error_analysis, empty_required)
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Enhanced login debug error: {e}")
+            return {"success": False, "error": str(e)}
+
+    def _generate_login_recommendations(self, error_analysis, empty_required):
+        """Generate specific recommendations based on debug results"""
+        recommendations = []
+        
+        if not error_analysis["form_submitted"]:
+            recommendations.append("❌ Form was not actually submitted - check form validation")
+        
+        if empty_required:
+            recommendations.append(f"❌ Empty required fields: {[field['name'] for field in empty_required]}")
+        
+        if error_analysis["page_indicators"]["has_error_message"]:
+            recommendations.append("❌ Error message detected - likely credential issue")
+        
+        if error_analysis["page_indicators"]["has_verification"]:
+            recommendations.append("⚠️ Verification challenge appeared")
+        
+        if error_analysis["network_requests"] == 0:
+            recommendations.append("❌ No network requests detected - form submission failed")
+        
+        if error_analysis["page_indicators"]["still_has_login_form"] and not error_analysis["url_changed"]:
+            recommendations.append("❌ Still on login page - check credentials or account status")
+        
+        return recommendations
+
+    def test_credentials_validity(self):
+        """🔍 Test if credentials are valid by checking account status"""
+        try:
+            logger.info("🔍 Testing credential validity...")
+            
+            return {
+                "account_exists": "unknown",
+                "account_status": "unknown", 
+                "last_login": "unknown",
+                "recommendations": [
+                    "Manually verify credentials work in browser",
+                    "Check if account is banned/suspended",
+                    "Verify 2FA is not enabled"
+                ]
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Credential validation error: {e}")
+            return {"error": str(e)}
+
     def run_complete_analytics_collection(self, game_id="7291257156"):
         """🎯 Complete analytics collection with enhanced fixes"""
         start_time = datetime.now()
@@ -1061,6 +1331,40 @@ def screenshot_viewer():
                 } catch (error) {
                     showResult('❌ Login test failed: ' + error.message, 'error');
                 }
+            async function visualDebug() {
+                showLoading();
+                try {
+                    const response = await fetch('/debug-login-with-screenshots', {method: 'POST'});
+                    const data = await response.json();
+                    showResult('🔍 Visual Debug Result:\\n' + JSON.stringify(data, null, 2), 
+                              data.overall_success ? 'success' : 'error');
+                } catch (error) {
+                    showResult('❌ Visual debug failed: ' + error.message, 'error');
+                }
+            }
+            
+            async function enhancedLoginDebug() {
+                showLoading();
+                try {
+                    const response = await fetch('/debug-enhanced-login', {method: 'POST'});
+                    const data = await response.json();
+                    showResult('🔍 Enhanced Login Debug Result:\\n' + JSON.stringify(data, null, 2), 
+                              data.success ? 'success' : 'error');
+                } catch (error) {
+                    showResult('❌ Enhanced login debug failed: ' + error.message, 'error');
+                }
+            }
+            
+            async function testCredentials() {
+                showLoading();
+                try {
+                    const response = await fetch('/test-credentials', {method: 'POST'});
+                    const data = await response.json();
+                    showResult('🔑 Credential Test Result:\\n' + JSON.stringify(data, null, 2), 
+                              'info');
+                } catch (error) {
+                    showResult('❌ Credential test failed: ' + error.message, 'error');
+                }
             }
         </script>
     </body>
@@ -1086,7 +1390,9 @@ def status():
             "✅ Reduced timeouts",
             "✅ Robust credential filling",
             "✅ Multiple click strategies",
-            "✅ Improved error handling"
+            "✅ Improved error handling",
+            "✅ NEW: Detailed form submission analysis",
+            "✅ NEW: Credential validation testing"
         ],
         "timestamp": datetime.now().isoformat()
     })
@@ -1193,6 +1499,56 @@ def debug_login_with_screenshots():
             "traceback": traceback.format_exc()
         }), 500
 
+@app.route('/debug-enhanced-login', methods=['POST'])
+def debug_enhanced_login():
+    """🔍 Enhanced login debugging with detailed form analysis"""
+    try:
+        with analytics.get_remote_driver() as driver:
+            # Navigate to login page
+            driver.get("https://www.roblox.com/login")
+            time.sleep(5)
+            
+            # Apply simple cookie removal
+            cookie_result = analytics.simple_cookie_removal(driver)
+            
+            # Run enhanced debugging
+            debug_result = analytics.enhanced_login_debug(driver)
+            debug_result["cookie_removal"] = cookie_result
+            debug_result["api_key_used"] = f"{analytics.verification_solver.api_key[:8]}..."
+            debug_result["selenium_url"] = analytics.selenium_url
+            debug_result["timestamp"] = datetime.now().isoformat()
+            
+            return jsonify(debug_result)
+            
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
+@app.route('/test-credentials', methods=['POST'])
+def test_credentials():
+    """🔍 Test credential validity"""
+    try:
+        credential_test = analytics.test_credentials_validity()
+        return jsonify({
+            "credentials": {
+                "username": analytics.username,
+                "password_length": len(analytics.password)
+            },
+            "validation_result": credential_test,
+            "manual_test_url": "https://www.roblox.com/login",
+            "instructions": [
+                f"1. Go to https://www.roblox.com/login",
+                f"2. Try logging in with username: {analytics.username}",
+                "3. Check if account is banned, suspended, or requires 2FA",
+                "4. Verify password is correct"
+            ]
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/login-test', methods=['POST'])
 def login_test_endpoint():
     """Test the fixed login process"""
@@ -1295,6 +1651,8 @@ def home():
             "GET /screenshot-viewer - Visual debugging interface",
             "POST /debug-region - Check server region",
             "POST /debug-login-with-screenshots - Full debug with fixes",
+            "POST /debug-enhanced-login - NEW: Detailed form submission analysis",
+            "POST /test-credentials - NEW: Credential validation testing",
             "POST /login-test - Test fixed login process",
             "POST /trigger-diagnostic - Complete analytics with fixes",
             "POST /test-api-auth - Test API authentication"
@@ -1435,6 +1793,8 @@ def test_interface():
                 <button class="button fixed" onclick="runCompleteTest()">🎯 Run Complete Test</button>
                 <button class="button" onclick="debugRegion()">🌐 Debug Region</button>
                 <button class="button" onclick="visualDebug()">🔍 Visual Debug</button>
+                <button class="button" onclick="enhancedLoginDebug()">🔍 Enhanced Login Debug</button>
+                <button class="button" onclick="testCredentials()">🔑 Test Credentials</button>
             </div>
             
             <div id="loading" class="loading" style="display: none;">

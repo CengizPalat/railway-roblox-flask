@@ -430,32 +430,113 @@ class RobloxAnalytics:
             }
     
     def login_to_roblox(self, driver):
-        """🍪 ENHANCED LOGIN with COMPREHENSIVE COOKIE BANNER HANDLING and 2Captcha verification"""
+        """🍪 NUCLEAR LOGIN with AGGRESSIVE COOKIE BANNER DESTRUCTION"""
         try:
-            logger.info("🔐 Starting Roblox login with ENHANCED cookie banner bypass...")
+            logger.info("🔐 Starting Roblox login with NUCLEAR cookie banner destruction...")
             
             # Navigate to login page
             driver.get("https://www.roblox.com/login")
             time.sleep(5)
             
-            # === 🍪 ENHANCED COOKIE BANNER HANDLING ===
-            def enhanced_cookie_banner_removal():
-                """Comprehensive cookie banner removal - multiple strategies"""
-                logger.info("🍪 Enhanced cookie banner detection and removal...")
+            # === 🍪 NUCLEAR COOKIE BANNER DESTRUCTION ===
+            def nuclear_cookie_banner_destruction():
+                """NUCLEAR cookie banner removal - maximum aggression"""
+                logger.info("🍪 🚀 NUCLEAR COOKIE BANNER DESTRUCTION INITIATED...")
                 
-                # Strategy 1: Click accept buttons
-                cookie_buttons = [
+                # NUCLEAR JavaScript removal - most aggressive approach
+                nuclear_destruction_js = """
+                console.log('🍪 🚀 NUCLEAR COOKIE BANNER DESTRUCTION EXECUTING...');
+                
+                // NUCLEAR TARGET LIST - ALL possible cookie banner elements
+                const nuclearTargets = [
+                    '.cookie-banner-bg', '.cookie-banner', '.cookie-notice',
+                    '.cookie-consent', '[class*="cookie-banner"]', 
+                    '[id*="cookie-banner"]', '.modal-backdrop', '.overlay',
+                    '[aria-hidden="true"][class*="banner"]',
+                    '[data-testid*="cookie"]', '.notification-banner',
+                    '.banner-overlay', '.popup-overlay', '.gdpr-banner',
+                    '.consent-banner', '.privacy-banner', '[role="dialog"]',
+                    '.dialog-overlay', '.modal-overlay', '.backdrop'
+                ];
+                
+                let destroyed = 0;
+                
+                // PHASE 1: COMPLETE ANNIHILATION
+                nuclearTargets.forEach(target => {
+                    document.querySelectorAll(target).forEach(element => {
+                        console.log('💥 NUCLEAR DESTRUCTION of:', target, element);
+                        
+                        // MAXIMUM DESTRUCTION - ALL CSS PROPERTIES
+                        element.style.cssText = `
+                            display: none !important;
+                            visibility: hidden !important;
+                            opacity: 0 !important;
+                            pointer-events: none !important;
+                            z-index: -99999 !important;
+                            position: absolute !important;
+                            left: -99999px !important;
+                            top: -99999px !important;
+                            width: 0px !important;
+                            height: 0px !important;
+                            transform: scale(0) !important;
+                            overflow: hidden !important;
+                        `;
+                        
+                        // COMPLETE DOM REMOVAL
+                        element.remove();
+                        destroyed++;
+                    });
+                });
+                
+                // PHASE 2: NUCLEAR SWEEP - Remove ANY high z-index elements
+                document.querySelectorAll('*').forEach(element => {
+                    const computedStyle = window.getComputedStyle(element);
+                    const zIndex = parseInt(computedStyle.zIndex) || 0;
+                    const position = computedStyle.position;
+                    
+                    if ((position === 'fixed' || position === 'absolute') && 
+                        zIndex > 500 &&
+                        (element.className.toLowerCase().includes('banner') || 
+                         element.className.toLowerCase().includes('cookie') ||
+                         element.className.toLowerCase().includes('overlay') ||
+                         element.className.toLowerCase().includes('modal') ||
+                         element.className.toLowerCase().includes('dialog') ||
+                         element.className.toLowerCase().includes('backdrop'))) {
+                        
+                        console.log('🧹 NUCLEAR SWEEP - Destroying high z-index element:', element);
+                        element.style.cssText = 'display: none !important;';
+                        element.remove();
+                        destroyed++;
+                    }
+                });
+                
+                // PHASE 3: BODY STYLE CLEANUP
+                document.body.style.overflow = 'auto';
+                document.documentElement.style.overflow = 'auto';
+                
+                console.log('🍪 🚀 NUCLEAR DESTRUCTION COMPLETE. Destroyed', destroyed, 'elements');
+                return destroyed;
+                """
+                
+                try:
+                    destroyed_count = driver.execute_script(nuclear_destruction_js)
+                    logger.info(f"💥 NUCLEAR DESTRUCTION: Annihilated {destroyed_count} cookie banner elements")
+                except Exception as js_error:
+                    logger.warning(f"Nuclear JS destruction failed: {js_error}")
+                
+                # Additional: Nuclear click on any remaining accept buttons
+                nuclear_accept_buttons = [
                     "button[data-testid*='cookie-accept']",
                     "button[id*='cookie-accept']", 
                     "#onetrust-accept-btn-handler",
                     "//button[contains(text(), 'Accept')]",
                     "//button[contains(text(), 'OK')]",
                     "//button[contains(text(), 'Allow')]",
-                    ".cookie-banner button",
-                    ".cookie-notice button"
+                    "//button[contains(text(), 'Agree')]",
+                    "//button[contains(text(), 'Continue')]"
                 ]
                 
-                for selector in cookie_buttons:
+                for selector in nuclear_accept_buttons:
                     try:
                         if selector.startswith("//"):
                             elements = driver.find_elements(By.XPATH, selector)
@@ -465,66 +546,19 @@ class RobloxAnalytics:
                         for btn in elements:
                             if btn.is_displayed():
                                 try:
-                                    btn.click()
-                                    logger.info(f"✅ Clicked cookie button: {selector}")
+                                    driver.execute_script("arguments[0].click();", btn)
+                                    logger.info(f"💥 NUCLEAR: Destroyed accept button {selector}")
                                     time.sleep(1)
                                     break
                                 except:
-                                    driver.execute_script("arguments[0].click();", btn)
-                                    logger.info(f"✅ JS-clicked cookie button: {selector}")
-                                    time.sleep(1)
-                                    break
+                                    continue
                     except:
                         continue
-                
-                # Strategy 2: Nuclear overlay removal
-                overlay_removal_js = """
-                // Find and remove all cookie banner related elements
-                const selectors = [
-                    '.cookie-banner-bg', '.cookie-banner', '.cookie-notice',
-                    '.cookie-consent', '[class*="cookie-banner"]', 
-                    '[id*="cookie-banner"]', '.modal-backdrop', '.overlay',
-                    '[aria-hidden="true"][class*="banner"]'
-                ];
-                
-                let removed = 0;
-                selectors.forEach(selector => {
-                    document.querySelectorAll(selector).forEach(el => {
-                        el.style.display = 'none';
-                        el.style.visibility = 'hidden';
-                        el.style.opacity = '0';
-                        el.style.pointerEvents = 'none';
-                        el.style.zIndex = '-9999';
-                        el.remove();
-                        removed++;
-                    });
-                });
-                
-                // Remove any high z-index fixed/absolute elements that might interfere
-                document.querySelectorAll('*').forEach(el => {
-                    const style = window.getComputedStyle(el);
-                    if ((style.position === 'fixed' || style.position === 'absolute') && 
-                        parseInt(style.zIndex) > 1000 &&
-                        (el.className.includes('banner') || el.className.includes('cookie'))) {
-                        el.style.display = 'none';
-                        el.remove();
-                        removed++;
-                    }
-                });
-                
-                return removed;
-                """
-                
-                try:
-                    removed_count = driver.execute_script(overlay_removal_js)
-                    logger.info(f"🗑️ Removed {removed_count} overlay elements with JavaScript")
-                except Exception as e:
-                    logger.warning(f"JS overlay removal failed: {e}")
             
-            # Run enhanced cookie banner removal
-            enhanced_cookie_banner_removal()
+            # Execute nuclear destruction
+            nuclear_cookie_banner_destruction()
             
-            # === FORM FILLING (existing logic) ===
+            # === FORM FILLING ===
             try:
                 logger.info("🔍 Looking for login form elements...")
                 username_field = WebDriverWait(driver, 10).until(
@@ -546,61 +580,146 @@ class RobloxAnalytics:
                 
                 logger.info("✅ Credentials filled")
                 
-                # === 🎯 ENHANCED LOGIN BUTTON CLICK ===
-                def enhanced_login_click():
-                    """Multiple click strategies to bypass any remaining overlays"""
-                    # Run cookie removal again right before clicking
-                    enhanced_cookie_banner_removal()
-                    time.sleep(0.5)
+                # === 🎯 NUCLEAR LOGIN BUTTON CLICK ===
+                def nuclear_login_button_click():
+                    """NUCLEAR login button click with maximum aggression"""
+                    logger.info("🎯 🚀 NUCLEAR LOGIN BUTTON CLICK INITIATED...")
                     
-                    strategies = [
-                        ("Standard Click", lambda: login_button.click()),
-                        ("JavaScript Click", lambda: driver.execute_script("arguments[0].click();", login_button)),
-                        ("ActionChains Click", lambda: ActionChains(driver).move_to_element(login_button).click().perform()),
-                        ("Focus + Click", lambda: driver.execute_script("arguments[0].focus(); arguments[0].click();", login_button)),
-                        ("Form Submit", lambda: driver.execute_script("const form = arguments[0].closest('form'); if(form) form.submit(); else arguments[0].click();", login_button))
+                    # Pre-click nuclear destruction
+                    nuclear_cookie_banner_destruction()
+                    time.sleep(1)
+                    
+                    # NUCLEAR click strategies - ordered from most to least aggressive
+                    nuclear_strategies = [
+                        ("NUCLEAR JavaScript Force Click", lambda: driver.execute_script("""
+                            console.log('🎯 🚀 NUCLEAR JavaScript Force Click executing...');
+                            const btn = arguments[0];
+                            
+                            // DESTROY any remaining interfering elements
+                            document.querySelectorAll('.cookie-banner-bg, .overlay, .modal-backdrop, [class*="cookie-banner"], .banner-overlay').forEach(el => {
+                                el.remove();
+                            });
+                            
+                            // NUCLEAR focus and click
+                            btn.focus();
+                            btn.scrollIntoView({behavior: 'instant', block: 'center'});
+                            
+                            // MULTIPLE click events
+                            btn.click();
+                            
+                            // Dispatch mouse event as backup
+                            const mouseEvent = new MouseEvent('click', {
+                                view: window,
+                                bubbles: true,
+                                cancelable: true,
+                                button: 0
+                            });
+                            btn.dispatchEvent(mouseEvent);
+                            
+                            console.log('🎯 🚀 NUCLEAR Force Click completed');
+                        """, login_button)),
+                        
+                        ("NUCLEAR Event Dispatch", lambda: driver.execute_script("""
+                            console.log('🎯 🚀 NUCLEAR Event Dispatch executing...');
+                            const btn = arguments[0];
+                            
+                            // Create and dispatch multiple event types
+                            ['mousedown', 'mouseup', 'click'].forEach(eventType => {
+                                const event = new MouseEvent(eventType, {
+                                    view: window,
+                                    bubbles: true,
+                                    cancelable: true,
+                                    button: 0,
+                                    clientX: btn.getBoundingClientRect().left + btn.offsetWidth/2,
+                                    clientY: btn.getBoundingClientRect().top + btn.offsetHeight/2
+                                });
+                                btn.dispatchEvent(event);
+                            });
+                            
+                            console.log('🎯 🚀 NUCLEAR Event Dispatch completed');
+                        """, login_button)),
+                        
+                        ("NUCLEAR Form Submit Bypass", lambda: driver.execute_script("""
+                            console.log('🎯 🚀 NUCLEAR Form Submit Bypass executing...');
+                            const btn = arguments[0];
+                            const form = btn.closest('form');
+                            
+                            if(form) {
+                                // Try to submit form directly
+                                form.submit();
+                                console.log('🎯 🚀 Form submitted directly');
+                            } else {
+                                // Fallback to button click
+                                btn.click();
+                                console.log('🎯 🚀 Button click fallback');
+                            }
+                        """, login_button)),
+                        
+                        ("NUCLEAR Coordinate Click", lambda: driver.execute_script("""
+                            console.log('🎯 🚀 NUCLEAR Coordinate Click executing...');
+                            const btn = arguments[0];
+                            const rect = btn.getBoundingClientRect();
+                            const x = rect.left + rect.width / 2;
+                            const y = rect.top + rect.height / 2;
+                            
+                            // Create click at exact coordinates
+                            const clickEvent = new MouseEvent('click', {
+                                view: window,
+                                bubbles: true,
+                                cancelable: true,
+                                clientX: x,
+                                clientY: y
+                            });
+                            
+                            document.elementFromPoint(x, y).dispatchEvent(clickEvent);
+                            console.log('🎯 🚀 Coordinate click completed at', x, y);
+                        """, login_button)),
+                        
+                        ("NUCLEAR Direct Click", lambda: driver.execute_script("arguments[0].click();", login_button)),
+                        
+                        ("Standard Click", lambda: login_button.click())
                     ]
                     
-                    for strategy_name, click_method in strategies:
+                    for strategy_name, click_method in nuclear_strategies:
                         try:
-                            logger.info(f"🎯 Attempting {strategy_name}...")
+                            logger.info(f"🎯 🚀 NUCLEAR ATTEMPT: {strategy_name}...")
                             click_method()
-                            time.sleep(2)
+                            time.sleep(3)
                             
-                            # Check if click worked by monitoring URL change
+                            # Check if click worked
                             current_url = driver.current_url
                             if "login" not in current_url.lower():
-                                logger.info(f"✅ Login successful with {strategy_name}!")
+                                logger.info(f"✅ 🚀 NUCLEAR SUCCESS with {strategy_name}!")
                                 return True
                             
                             # Check for verification page
                             page_text = driver.find_element(By.TAG_NAME, "body").text.lower()
                             if any(word in page_text for word in ["verification", "captcha", "challenge"]):
-                                logger.info(f"✅ Login successful - verification page detected with {strategy_name}!")
+                                logger.info(f"✅ 🚀 NUCLEAR SUCCESS - verification detected with {strategy_name}!")
                                 return True
                                 
                         except Exception as e:
-                            logger.warning(f"❌ {strategy_name} failed: {e}")
+                            logger.warning(f"❌ 🚀 NUCLEAR {strategy_name} failed: {e}")
                             continue
                     
                     return False
                 
-                # Execute enhanced login click
-                click_success = enhanced_login_click()
+                # Execute nuclear login click
+                click_success = nuclear_login_button_click()
                 if not click_success:
-                    logger.error("❌ All login click strategies failed")
+                    logger.error("❌ 🚀 ALL NUCLEAR STRATEGIES FAILED")
                     return {
                         "success": False,
-                        "message": "Login button click failed - cookie banner may still be interfering",
+                        "message": "NUCLEAR cookie banner destruction failed - manual intervention needed",
                         "current_url": driver.current_url,
                         "suggestions": [
-                            "Cookie banner removal incomplete",
-                            "Page layout may have changed", 
+                            "Cookie banner using unknown selectors",
+                            "New Roblox page structure", 
                             "Network connectivity issues"
                         ]
                     }
                 
-                # === POST-LOGIN VERIFICATION HANDLING (existing logic) ===
+                # === POST-LOGIN VERIFICATION HANDLING ===
                 logger.info("⏳ Waiting for post-login processing...")
                 time.sleep(5)
                 
@@ -611,7 +730,7 @@ class RobloxAnalytics:
                 if any(indicator in page_text for indicator in verification_indicators):
                     logger.info("🎯 Verification challenge detected, attempting 2Captcha solve...")
                     
-                    # Handle 2Captcha verification (existing logic)
+                    # Handle 2Captcha verification
                     verification_result = self.verification_solver.solve_roblox_verification(driver)
                     
                     if verification_result.get("success"):
@@ -685,7 +804,7 @@ class RobloxAnalytics:
                 }
                 
         except Exception as e:
-            logger.error(f"❌ Login error: {str(e)}")
+            logger.error(f"❌ Nuclear login error: {str(e)}")
             return {
                 "success": False,
                 "error": str(e),
@@ -771,7 +890,7 @@ class RobloxAnalytics:
                     logger.warning("⚠️ Cloudflare bypass failed, continuing anyway...")
                 
                 # Step 2: Login with verification handling
-                logger.info("Step 2: Logging into Roblox with verification handling...")
+                logger.info("Step 2: Logging into Roblox with NUCLEAR cookie banner destruction...")
                 login_result = self.login_to_roblox(driver)
                 results["steps"]["login"] = login_result
                 
@@ -822,7 +941,7 @@ def home():
     """Root endpoint with system information"""
     return jsonify({
         "status": "🎯 Roblox Analytics API - Remote Selenium + Official 2Captcha",
-        "version": "6.1.3 - COOKIE BANNER FIX APPLIED",
+        "version": "6.2.0 - NUCLEAR COOKIE BANNER DESTRUCTION",
         "python_version": "3.12 Compatible",
         "selenium_mode": "Remote WebDriver ✅",
         "selenium_url": analytics.selenium_url,
@@ -831,7 +950,7 @@ def home():
         "api_key_preview": f"{analytics.verification_solver.api_key[:8]}...",
         "environment": os.getenv('RAILWAY_ENVIRONMENT', 'local'),
         "cors_status": "✅ Fully Fixed with Headers",
-        "cookie_banner_fix": "✅ Enhanced Cookie Banner Removal Applied",
+        "cookie_banner_fix": "🚀 NUCLEAR DESTRUCTION APPLIED",
         "testing_interface": {
             "url": "/test",
             "description": "🎯 CLICK HERE FOR EASY BROWSER TESTING",
@@ -850,8 +969,8 @@ def home():
         "features": [
             "✅ Remote Selenium WebDriver (no local Chrome needed)",
             "✅ Cloudflare bypass via remote browser",
-            "✅ Enhanced Cookie Banner Removal (FIXED)",
-            "✅ Multiple Login Click Strategies (FIXED)",
+            "🚀 NUCLEAR Cookie Banner Destruction (UPGRADED)",
+            "✅ Multiple Nuclear Login Click Strategies (UPGRADED)",
             "✅ Roblox verification puzzle solving (2Captcha)", 
             "✅ FunCaptcha (Arkose Labs) automated solving",
             "✅ Image puzzles (dice, cubes, cards) solving",
@@ -867,7 +986,7 @@ def home():
 def status():
     """Comprehensive system status endpoint"""
     return jsonify({
-        "status": "🎯 System Fully Operational - Cookie Banner Fix Applied",
+        "status": "🎯 System Fully Operational - Nuclear Cookie Banner Destruction",
         "timestamp": datetime.now().isoformat(),
         "verification_solver": {
             "enabled": analytics.verification_solver.solver is not None,
@@ -888,12 +1007,12 @@ def status():
             "headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept"]
         },
         "cookie_banner_fix": {
-            "status": "✅ Applied",
-            "version": "Enhanced Multi-Strategy Removal",
+            "status": "🚀 NUCLEAR DESTRUCTION DEPLOYED",
+            "version": "Nuclear Multi-Phase Destruction",
             "strategies": [
-                "Cookie accept button clicking",
-                "JavaScript overlay removal", 
-                "Multiple login click methods",
+                "NUCLEAR JavaScript element destruction",
+                "High z-index element sweep", 
+                "Multiple nuclear login click methods",
                 "Enhanced error handling"
             ]
         },
@@ -911,10 +1030,11 @@ def get_results():
 
 @app.route('/balance', methods=['POST', 'GET'])
 def check_balance():
-    """Check 2Captcha account balance"""
+    """Check 2Captcha account balance - FIXED METHOD"""
     try:
         if analytics.verification_solver.solver:
-            balance = analytics.verification_solver.solver.get_balance()
+            # 🔧 FIXED: Use balance() not get_balance()
+            balance = analytics.verification_solver.solver.balance()
             return jsonify({
                 "success": True,
                 "balance": f"${balance:.2f}",
@@ -1102,9 +1222,9 @@ def test_verification_endpoint():
 
 @app.route('/login-test', methods=['POST'])
 def login_test_endpoint():
-    """Test Roblox login with 2Captcha verification handling via remote WebDriver"""
+    """Test Roblox login with NUCLEAR cookie banner destruction via remote WebDriver"""
     try:
-        logger.info("🔐 Testing Roblox login with 2Captcha verification handling via remote WebDriver...")
+        logger.info("🔐 Testing Roblox login with NUCLEAR cookie banner destruction via remote WebDriver...")
         
         with analytics.get_remote_driver() as driver:
             result = analytics.login_to_roblox(driver)
@@ -1123,7 +1243,7 @@ def login_test_endpoint():
 
 @app.route('/trigger-diagnostic', methods=['POST'])
 def trigger_diagnostic():
-    """Trigger complete analytics collection with 2Captcha verification handling via remote WebDriver"""
+    """Trigger complete analytics collection with NUCLEAR cookie banner destruction"""
     try:
         # 🔧 IMPROVED REQUEST PARSING WITH ERROR HANDLING
         game_id = "7291257156"  # Default game ID
@@ -1140,7 +1260,7 @@ def trigger_diagnostic():
         logger.info(f"🎮 Game ID: {game_id}")
         logger.info(f"🔑 2Captcha API: {analytics.verification_solver.api_key[:8]}...")
         logger.info(f"🌐 Remote Selenium: {analytics.selenium_url}")
-        logger.info(f"🍪 Cookie Banner Fix: Enhanced Multi-Strategy Removal")
+        logger.info(f"🚀 Cookie Banner Fix: NUCLEAR DESTRUCTION")
         logger.info(f"📦 Package: 2captcha-python (official)")
         
         result = analytics.run_complete_analytics_collection(game_id)
@@ -1165,7 +1285,7 @@ def test_interface():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Roblox 2Captcha Test Interface - COOKIE BANNER FIX APPLIED</title>
+        <title>Roblox 2Captcha Test Interface - NUCLEAR COOKIE BANNER FIX</title>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
@@ -1198,13 +1318,14 @@ def test_interface():
                 margin: 10px 0;
                 font-weight: bold;
             }
-            .cookie-fix {
-                background: #cff4fc;
-                color: #055160;
+            .nuclear-fix {
+                background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+                color: white;
                 padding: 10px;
                 border-radius: 5px;
                 margin: 10px 0;
                 font-weight: bold;
+                text-align: center;
             }
             .debug-info {
                 background: #fff3cd;
@@ -1267,6 +1388,13 @@ def test_interface():
                 background: #5a2d91;
                 box-shadow: 0 4px 12px rgba(111,66,193,0.3);
             }
+            .nuclear {
+                background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            }
+            .nuclear:hover {
+                background: linear-gradient(135deg, #ee5a24 0%, #ff6b6b 100%);
+                box-shadow: 0 4px 12px rgba(238,90,36,0.3);
+            }
             .test-section {
                 background: #f8f9fa;
                 padding: 20px;
@@ -1277,6 +1405,10 @@ def test_interface():
             .debug-section {
                 background: #f8f5ff;
                 border-left-color: #6f42c1;
+            }
+            .nuclear-section {
+                background: #fff5f5;
+                border-left-color: #ff6b6b;
             }
             .result { 
                 margin: 20px 0; 
@@ -1320,7 +1452,7 @@ def test_interface():
             <div class="header">
                 <h1>🤖 Roblox 2Captcha Test System</h1>
                 <div class="cors-fixed">✅ CORS + Request Parsing Issues FULLY FIXED!</div>
-                <div class="cookie-fix">🍪 COOKIE BANNER FIX APPLIED - Enhanced Multi-Strategy Removal!</div>
+                <div class="nuclear-fix">🚀 NUCLEAR COOKIE BANNER DESTRUCTION DEPLOYED!</div>
                 <div class="debug-info">🔍 Now includes Selenium Connection Debugging</div>
                 <p><strong>System URL:</strong> <code>''' + request.host_url + '''</code></p>
                 <p><span class="status-indicator status-unknown"></span><span id="connectionStatus">Testing connection...</span></p>
@@ -1341,19 +1473,24 @@ def test_interface():
                 <button class="button debug" onclick="testSeleniumDirect()">🌐 Test Selenium URL Direct</button>
             </div>
             
+            <div class="test-section nuclear-section">
+                <h3>🚀 Nuclear Cookie Banner Tests</h3>
+                <p><strong>Test the NUCLEAR cookie banner destruction:</strong></p>
+                <button class="button nuclear" onclick="testLogin()">🚀 Test Nuclear Login</button>
+                <button class="button nuclear" onclick="testVerification()">🧩 Test Nuclear Verification</button>
+            </div>
+            
             <div class="test-section">
                 <h3>🔧 Advanced Tests</h3>
                 <button class="button" onclick="testCloudflare()">☁️ Test Cloudflare</button>
-                <button class="button" onclick="testVerification()">🧩 Test Verification</button>
-                <button class="button" onclick="testLogin()">🔐 Test Login</button>
             </div>
             
             <div class="test-section">
                 <h3>🚀 Complete System Test</h3>
                 <p><strong>⚠️ Warning:</strong> This will attempt to login to Roblox and solve verification puzzles!</p>
                 <p><strong>💰 Cost:</strong> ~$0.002 if verification puzzle is solved</p>
-                <p><strong>🍪 NEW:</strong> Enhanced cookie banner removal should fix login issues!</p>
-                <button class="button danger" onclick="runFullTest()" id="fullTestBtn">🚀 RUN COMPLETE TEST</button>
+                <p><strong>🚀 NEW:</strong> NUCLEAR cookie banner destruction should eliminate ALL login issues!</p>
+                <button class="button danger" onclick="runFullTest()" id="fullTestBtn">🚀 RUN COMPLETE NUCLEAR TEST</button>
             </div>
             
             <div id="result" class="result" style="display:none;"></div>
@@ -1501,45 +1638,45 @@ def test_interface():
             }
             
             async function testVerification() {
-                showLoading('🧩 Testing verification solving...\\nThis may take 30-60 seconds...');
+                showLoading('🧩 🚀 Testing NUCLEAR verification with cookie destruction...\\nThis may take 30-60 seconds...');
                 try {
                     const response = await fetch('/test-verification', { method: 'POST' });
                     const data = await response.json();
                     if (data.success) {
-                        showResult(`✅ Verification Test Success:\\n${JSON.stringify(data, null, 2)}`, 'success');
+                        showResult(`✅ 🚀 NUCLEAR Verification Test Success:\\n${JSON.stringify(data, null, 2)}`, 'success');
                     } else {
-                        showResult(`❌ Verification Test Failed:\\n${JSON.stringify(data, null, 2)}`, 'error');
+                        showResult(`❌ 🚀 NUCLEAR Verification Test Failed:\\n${JSON.stringify(data, null, 2)}`, 'error');
                     }
                 } catch (error) {
-                    showResult(`❌ Verification Test Failed\\nError: ${error.message}`, 'error');
+                    showResult(`❌ 🚀 NUCLEAR Verification Test Failed\\nError: ${error.message}`, 'error');
                 }
             }
             
             async function testLogin() {
-                showLoading('🔐 Testing login with enhanced cookie banner fix...\\nThis may take 30-60 seconds...');
+                showLoading('🔐 🚀 Testing NUCLEAR login with cookie banner destruction...\\nThis may take 30-60 seconds...');
                 try {
                     const response = await fetch('/login-test', { method: 'POST' });
                     const data = await response.json();
                     if (data.success) {
-                        showResult(`✅ Login Test Success:\\n${JSON.stringify(data, null, 2)}`, 'success');
+                        showResult(`✅ 🚀 NUCLEAR Login Test Success:\\n${JSON.stringify(data, null, 2)}`, 'success');
                     } else {
-                        showResult(`❌ Login Test Failed:\\n${JSON.stringify(data, null, 2)}`, 'error');
+                        showResult(`❌ 🚀 NUCLEAR Login Test Failed:\\n${JSON.stringify(data, null, 2)}`, 'error');
                     }
                 } catch (error) {
-                    showResult(`❌ Login Test Failed\\nError: ${error.message}`, 'error');
+                    showResult(`❌ 🚀 NUCLEAR Login Test Failed\\nError: ${error.message}`, 'error');
                 }
             }
             
             async function runFullTest() {
                 if (testRunning) return;
                 
-                if (!confirm('🚀 Run Complete Test?\\n\\nThis will:\\n- Connect to Selenium\\n- Navigate to Roblox\\n- Apply cookie banner fix\\n- Login with credentials\\n- Solve verification if needed\\n- Extract QPTR data\\n\\nCost: ~$0.002 if verification appears\\n\\nContinue?')) {
+                if (!confirm('🚀 Run Complete NUCLEAR Test?\\n\\nThis will:\\n- Connect to Selenium\\n- Navigate to Roblox\\n- Apply NUCLEAR cookie banner destruction\\n- Login with credentials\\n- Solve verification if needed\\n- Extract QPTR data\\n\\nCost: ~$0.002 if verification appears\\n\\nContinue?')) {
                     return;
                 }
                 
                 testRunning = true;
                 disableButton('fullTestBtn');
-                showLoading('🚀 Starting complete system test...\\nThis may take 2-5 minutes...\\n\\nSteps:\\n1. Connect to Selenium\\n2. Test Cloudflare bypass\\n3. Navigate to Roblox login\\n4. Apply enhanced cookie banner fix\\n5. Enter credentials\\n6. Detect verification puzzles\\n7. Solve with 2Captcha (if found)\\n8. Extract QPTR data\\n9. Report results');
+                showLoading('🚀 🚀 Starting complete NUCLEAR system test...\\nThis may take 2-5 minutes...\\n\\nSteps:\\n1. Connect to Selenium\\n2. Test Cloudflare bypass\\n3. Navigate to Roblox login\\n4. Apply NUCLEAR cookie banner destruction\\n5. Enter credentials\\n6. Execute NUCLEAR login click strategies\\n7. Detect verification puzzles\\n8. Solve with 2Captcha (if found)\\n9. Extract QPTR data\\n10. Report results');
                 
                 try {
                     const response = await fetch('/trigger-diagnostic', { 
@@ -1557,12 +1694,12 @@ def test_interface():
                     const data = await response.json();
                     
                     if (response.ok) {
-                        showResult(`🎉 Complete Test Results:\\n${JSON.stringify(data, null, 2)}`, 'success');
+                        showResult(`🎉 🚀 Complete NUCLEAR Test Results:\\n${JSON.stringify(data, null, 2)}`, 'success');
                     } else {
-                        showResult(`❌ Complete Test Failed (HTTP ${response.status}):\\n${JSON.stringify(data, null, 2)}`, 'error');
+                        showResult(`❌ 🚀 Complete NUCLEAR Test Failed (HTTP ${response.status}):\\n${JSON.stringify(data, null, 2)}`, 'error');
                     }
                 } catch (error) {
-                    showResult(`❌ Complete Test Failed\\nError: ${error.message}\\n\\nThis could be due to:\\n- Network timeout (verification solving takes time)\\n- Selenium connection issues\\n- Roblox login problems\\n- Server-side parsing error`, 'error');
+                    showResult(`❌ 🚀 Complete NUCLEAR Test Failed\\nError: ${error.message}\\n\\nThis could be due to:\\n- Network timeout (verification solving takes time)\\n- Selenium connection issues\\n- Roblox login problems\\n- Server-side parsing error`, 'error');
                 } finally {
                     testRunning = false;
                     enableButton('fullTestBtn');
@@ -1586,7 +1723,7 @@ def health():
         "package_verified": "2captcha-python (official)",
         "cors_enabled": True,
         "cors_status": "✅ Fully Fixed with Headers",
-        "cookie_banner_fix": "✅ Enhanced Multi-Strategy Removal Applied",
+        "cookie_banner_fix": "🚀 NUCLEAR DESTRUCTION DEPLOYED",
         "timestamp": datetime.now().isoformat()
     })
 
@@ -1595,5 +1732,5 @@ if __name__ == '__main__':
     logger.info(f"🚀 Starting Roblox Analytics API on port {port}")
     logger.info(f"🔑 2Captcha API: {analytics.verification_solver.api_key[:8]}...")
     logger.info(f"🌐 Selenium URL: {analytics.selenium_url}")
-    logger.info(f"🍪 Cookie Banner Fix: ✅ Applied")
+    logger.info(f"🚀 Cookie Banner Fix: NUCLEAR DESTRUCTION DEPLOYED")
     app.run(host='0.0.0.0', port=port, debug=False)

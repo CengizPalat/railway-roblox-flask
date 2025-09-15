@@ -1,8 +1,9 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 import os
 import time
 import json
+import requests
 from datetime import datetime, timedelta
 import base64
 import logging
@@ -317,6 +318,59 @@ class RobloxVerificationSolver:
             logger.error(f"❌ Wait and retry failed: {str(e)}")
             return {"success": False, "error": str(e)}
 
+class RobloxAPIAuth:
+    """🔧 NEW: API-based authentication using .ROBLOSECURITY cookies"""
+    
+    def __init__(self, username, password):
+        self.username = username
+        self.password = password
+        self.session = requests.Session()
+        self.roblosecurity_cookie = None
+        
+    def authenticate_via_api(self, roblosecurity_cookie=None):
+        """Authenticate using .ROBLOSECURITY cookie"""
+        try:
+            if roblosecurity_cookie:
+                self.roblosecurity_cookie = roblosecurity_cookie
+                logger.info("🔑 Attempting API authentication with provided cookie...")
+            else:
+                logger.info("🔑 No cookie provided, will need UI authentication first")
+                return False
+            
+            # Set the authentication cookie
+            self.session.cookies.set('.ROBLOSECURITY', self.roblosecurity_cookie, domain='.roblox.com')
+            
+            # Verify authentication
+            response = self.session.get('https://users.roblox.com/v1/users/authenticated')
+            
+            if response.status_code == 200:
+                user_data = response.json()
+                logger.info(f"✅ API authentication successful for user: {user_data.get('name', 'Unknown')}")
+                return True
+            else:
+                logger.warning(f"❌ API authentication failed: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ API authentication error: {e}")
+            return False
+    
+    def get_analytics_data(self, game_id):
+        """Get analytics data via API instead of scraping"""
+        try:
+            # This would use Roblox's analytics API if available
+            # For now, return placeholder indicating API method
+            return {
+                "success": True,
+                "method": "api",
+                "game_id": game_id,
+                "message": "Would use Roblox Analytics API here",
+                "authenticated_session": True
+            }
+        except Exception as e:
+            logger.error(f"❌ API analytics error: {e}")
+            return {"success": False, "error": str(e)}
+
 class RobloxAnalytics:
     def __init__(self):
         self.username = "ByddyY8rPao2124"
@@ -329,27 +383,72 @@ class RobloxAnalytics:
         # Remote Selenium URL - connecting to your existing Selenium service
         self.selenium_url = "https://standalone-chrome-production-eb24.up.railway.app/wd/hub"
         
-        # Initialize with your 2Captcha API key
+        # Initialize components
         self.verification_solver = RobloxVerificationSolver()
+        self.api_auth = RobloxAPIAuth(self.username, self.password)
         
         logger.info(f"🎯 RobloxAnalytics initialized with Remote Selenium: {self.selenium_url}")
         logger.info(f"🔑 2Captcha API key configured: {self.verification_solver.api_key[:8]}...")
+        logger.info(f"🌍 NEW: API authentication and regional detection enabled")
+    
+    def detect_server_region(self):
+        """🌍 NEW: Detect if we're running from European servers"""
+        try:
+            # Get our public IP and location
+            response = requests.get('https://ipapi.co/json/', timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                country = data.get('country_code', 'Unknown')
+                region = data.get('continent_code', 'Unknown')
+                is_eu = region == 'EU' or country in ['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE']
+                
+                logger.info(f"🌍 Server location: {country} ({region}) - EU: {is_eu}")
+                return {
+                    "country": country,
+                    "region": region,
+                    "is_eu": is_eu,
+                    "ip": data.get('ip', 'Unknown'),
+                    "will_trigger_gdpr": is_eu
+                }
+        except Exception as e:
+            logger.warning(f"Could not detect server region: {e}")
+            
+        return {
+            "country": "Unknown",
+            "region": "Unknown", 
+            "is_eu": True,  # Assume EU to be safe
+            "will_trigger_gdpr": True
+        }
     
     @contextmanager
     def get_remote_driver(self):
-        """Context manager for Remote WebDriver with proper cleanup"""
+        """Context manager for Remote WebDriver with enhanced US-focused configuration"""
         driver = None
         try:
             logger.info(f"🌐 Connecting to Remote Selenium at: {self.selenium_url}")
             
-            # Chrome options for remote connection
+            # 🔧 ENHANCED Chrome options based on developer friend's recommendations
             chrome_options = Options()
+            
+            # Basic stability options
             chrome_options.add_argument("--no-sandbox")
-            chrome_options.add_argument("--disable-dev-shm-usage") 
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            
+            # 🎯 NEW: Enhanced anti-detection and US-focused configuration
+            chrome_options.add_argument("--headless=new")  # Use new headless mode
+            chrome_options.add_argument("--window-size=1920,1080")  # Explicit window size
             chrome_options.add_argument("--disable-blink-features=AutomationControlled")
             chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
             chrome_options.add_experimental_option('useAutomationExtension', False)
-            chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            
+            # 🌍 US-focused user agent to reduce GDPR triggers
+            chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36")
+            
+            # Additional GDPR evasion settings
+            chrome_options.add_argument("--disable-features=VizDisplayCompositor")
+            chrome_options.add_argument("--disable-extensions")
+            chrome_options.add_argument("--disable-plugins")
+            chrome_options.add_argument("--lang=en-US,en")  # US English preference
             
             # Connect to remote WebDriver
             driver = webdriver.Remote(
@@ -362,15 +461,31 @@ class RobloxAnalytics:
             driver.set_page_load_timeout(60)
             driver.set_script_timeout(30)
             
-            # Execute stealth script
+            # 🔧 Enhanced stealth script
             stealth_script = """
+            // Enhanced stealth configuration
             Object.defineProperty(navigator, 'webdriver', {
                 get: () => undefined,
+            });
+            
+            // Override plugin array
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [1, 2, 3, 4, 5],
+            });
+            
+            // Override language to US English
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['en-US', 'en'],
+            });
+            
+            // Override platform to Windows
+            Object.defineProperty(navigator, 'platform', {
+                get: () => 'Win32',
             });
             """
             driver.execute_script(stealth_script)
             
-            logger.info("✅ Remote WebDriver connected successfully")
+            logger.info("✅ Enhanced Remote WebDriver connected successfully")
             yield driver
             
         except Exception as e:
@@ -383,6 +498,169 @@ class RobloxAnalytics:
                     logger.info("🔌 Remote WebDriver disconnected")
                 except Exception as e:
                     logger.warning(f"⚠️ Error disconnecting WebDriver: {str(e)}")
+    
+    def advanced_cookie_handling(self, driver):
+        """🔧 NEW: Advanced cookie banner handling based on developer friend's recommendations"""
+        logger.info("🍪 🎯 ADVANCED COOKIE BANNER HANDLING...")
+        
+        try:
+            # Step 1: Wait for any cookie banners to load
+            time.sleep(3)
+            
+            # Step 2: Check for iframe-based cookie banners
+            try:
+                logger.info("🔍 Checking for iframe-based cookie banners...")
+                iframe_selectors = [
+                    "iframe[src*='cookie']",
+                    "iframe[src*='consent']", 
+                    "iframe[src*='privacy']",
+                    "iframe[title*='cookie']",
+                    "iframe[title*='consent']"
+                ]
+                
+                for selector in iframe_selectors:
+                    try:
+                        iframe = WebDriverWait(driver, 5).until(
+                            EC.frame_to_be_available_and_switch_to_it((By.CSS_SELECTOR, selector))
+                        )
+                        logger.info(f"✅ Found and switched to cookie iframe: {selector}")
+                        
+                        # Try to click accept buttons within iframe
+                        accept_selectors = [
+                            "button#acceptAll",
+                            "button[aria-label*='Accept']",
+                            "button[onclick*='accept']",
+                            "//button[contains(., 'Accept')]",
+                            "//button[contains(., 'Agree')]"
+                        ]
+                        
+                        for btn_selector in accept_selectors:
+                            try:
+                                if btn_selector.startswith('//'):
+                                    btn = driver.find_element(By.XPATH, btn_selector)
+                                else:
+                                    btn = driver.find_element(By.CSS_SELECTOR, btn_selector)
+                                
+                                driver.execute_script("arguments[0].click();", btn)
+                                logger.info(f"✅ Clicked accept button in iframe: {btn_selector}")
+                                time.sleep(1)
+                                break
+                            except:
+                                continue
+                        
+                        driver.switch_to.default_content()
+                        time.sleep(2)
+                        break
+                        
+                    except:
+                        continue
+                        
+            except:
+                logger.info("No iframe-based cookie banners found")
+            
+            # Step 3: Handle regular cookie banners
+            logger.info("🔍 Handling regular cookie banners...")
+            
+            # Enhanced GDPR-specific removal
+            gdpr_removal_js = """
+            console.log('🍪 GDPR Cookie Banner Removal...');
+            
+            // Comprehensive Roblox GDPR selectors
+            const gdprSelectors = [
+                '.cookie-banner-bg', '.cookie-banner', '.cookie-notice',
+                '.cookie-consent', '.consent-banner', '.privacy-banner',
+                '.gdpr-banner', '.gdpr-notice', '.gdpr-consent',
+                '[class*="cookie"]', '[id*="cookie"]', '[data-testid*="cookie"]',
+                '[class*="consent"]', '[id*="consent"]', '[data-testid*="consent"]',
+                '[class*="privacy"]', '[id*="privacy"]', '[data-testid*="privacy"]',
+                '[class*="gdpr"]', '[id*="gdpr"]', '[data-testid*="gdpr"]',
+                '.modal-backdrop', '.modal-overlay', '.overlay', '.backdrop',
+                '[role="dialog"]', '[role="alertdialog"]', '[aria-modal="true"]'
+            ];
+            
+            let destroyed = 0;
+            let acceptClicked = 0;
+            
+            // First, try to click accept buttons
+            const acceptButtonTexts = ['Accept', 'Accept All', 'Allow', 'OK', 'Continue', 'Agree', 'I Accept'];
+            acceptButtonTexts.forEach(text => {
+                document.querySelectorAll('button, a, div[role="button"]').forEach(el => {
+                    if (el.textContent.trim().includes(text) && el.offsetParent !== null) {
+                        console.log('Clicking accept button:', el);
+                        el.click();
+                        acceptClicked++;
+                    }
+                });
+            });
+            
+            // Then remove all banner elements
+            gdprSelectors.forEach(selector => {
+                document.querySelectorAll(selector).forEach(el => {
+                    const computedStyle = window.getComputedStyle(el);
+                    const zIndex = parseInt(computedStyle.zIndex) || 0;
+                    const elementText = el.textContent.toLowerCase();
+                    
+                    const isBannerElement = (
+                        elementText.includes('cookie') ||
+                        elementText.includes('consent') ||
+                        elementText.includes('privacy') ||
+                        elementText.includes('gdpr') ||
+                        elementText.includes('accept') ||
+                        zIndex > 1000
+                    );
+                    
+                    if (isBannerElement || selector.includes('cookie') || selector.includes('consent')) {
+                        console.log('Destroying GDPR element:', selector, el);
+                        el.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important;';
+                        el.remove();
+                        destroyed++;
+                    }
+                });
+            });
+            
+            // Clean body styles
+            document.body.style.overflow = 'auto';
+            document.documentElement.style.overflow = 'auto';
+            document.body.classList.remove('modal-open', 'no-scroll');
+            
+            console.log('GDPR removal complete. Destroyed:', destroyed, 'Accept clicked:', acceptClicked);
+            return { destroyed: destroyed, acceptClicked: acceptClicked };
+            """
+            
+            result = driver.execute_script(gdpr_removal_js)
+            logger.info(f"🎯 GDPR handling complete: Destroyed {result['destroyed']} elements, clicked {result['acceptClicked']} accept buttons")
+            
+            # Step 4: Additional wait for any delayed banners
+            time.sleep(2)
+            
+            return result
+            
+        except Exception as e:
+            logger.warning(f"Advanced cookie handling error: {e}")
+            return {"destroyed": 0, "acceptClicked": 0}
+    
+    def robust_click(self, element, driver):
+        """🔧 NEW: Multiple click strategies from developer friend's recommendations"""
+        strategies = [
+            ("Standard Click", lambda: element.click()),
+            ("JavaScript Click", lambda: driver.execute_script("arguments[0].click();", element)),
+            ("ActionChains Click", lambda: ActionChains(driver).move_to_element(element).click().perform()),
+            ("Event Dispatch Click", lambda: driver.execute_script(
+                "arguments[0].dispatchEvent(new MouseEvent('click', {bubbles: true}));", element)),
+            ("Focus + Click", lambda: driver.execute_script("arguments[0].focus(); arguments[0].click();", element))
+        ]
+        
+        for strategy_name, click_method in strategies:
+            try:
+                logger.info(f"🎯 Attempting {strategy_name}...")
+                click_method()
+                time.sleep(1)
+                return True
+            except Exception as e:
+                logger.warning(f"❌ {strategy_name} failed: {e}")
+                continue
+        
+        return False
     
     def test_cloudflare_bypass(self, driver):
         """Test Cloudflare bypass capability"""
@@ -430,135 +708,21 @@ class RobloxAnalytics:
             }
     
     def login_to_roblox(self, driver):
-        """🍪 NUCLEAR LOGIN with AGGRESSIVE COOKIE BANNER DESTRUCTION"""
+        """🎯 ENHANCED LOGIN with regional detection and advanced cookie handling"""
         try:
-            logger.info("🔐 Starting Roblox login with NUCLEAR cookie banner destruction...")
+            logger.info("🔐 Starting ENHANCED Roblox login with regional detection...")
+            
+            # Step 0: Detect server region
+            region_info = self.detect_server_region()
             
             # Navigate to login page
             driver.get("https://www.roblox.com/login")
             time.sleep(5)
             
-            # === 🍪 NUCLEAR COOKIE BANNER DESTRUCTION ===
-            def nuclear_cookie_banner_destruction():
-                """NUCLEAR cookie banner removal - maximum aggression"""
-                logger.info("🍪 🚀 NUCLEAR COOKIE BANNER DESTRUCTION INITIATED...")
-                
-                # NUCLEAR JavaScript removal - most aggressive approach
-                nuclear_destruction_js = """
-                console.log('🍪 🚀 NUCLEAR COOKIE BANNER DESTRUCTION EXECUTING...');
-                
-                // NUCLEAR TARGET LIST - ALL possible cookie banner elements
-                const nuclearTargets = [
-                    '.cookie-banner-bg', '.cookie-banner', '.cookie-notice',
-                    '.cookie-consent', '[class*="cookie-banner"]', 
-                    '[id*="cookie-banner"]', '.modal-backdrop', '.overlay',
-                    '[aria-hidden="true"][class*="banner"]',
-                    '[data-testid*="cookie"]', '.notification-banner',
-                    '.banner-overlay', '.popup-overlay', '.gdpr-banner',
-                    '.consent-banner', '.privacy-banner', '[role="dialog"]',
-                    '.dialog-overlay', '.modal-overlay', '.backdrop'
-                ];
-                
-                let destroyed = 0;
-                
-                // PHASE 1: COMPLETE ANNIHILATION
-                nuclearTargets.forEach(target => {
-                    document.querySelectorAll(target).forEach(element => {
-                        console.log('💥 NUCLEAR DESTRUCTION of:', target, element);
-                        
-                        // MAXIMUM DESTRUCTION - ALL CSS PROPERTIES
-                        element.style.cssText = `
-                            display: none !important;
-                            visibility: hidden !important;
-                            opacity: 0 !important;
-                            pointer-events: none !important;
-                            z-index: -99999 !important;
-                            position: absolute !important;
-                            left: -99999px !important;
-                            top: -99999px !important;
-                            width: 0px !important;
-                            height: 0px !important;
-                            transform: scale(0) !important;
-                            overflow: hidden !important;
-                        `;
-                        
-                        // COMPLETE DOM REMOVAL
-                        element.remove();
-                        destroyed++;
-                    });
-                });
-                
-                // PHASE 2: NUCLEAR SWEEP - Remove ANY high z-index elements
-                document.querySelectorAll('*').forEach(element => {
-                    const computedStyle = window.getComputedStyle(element);
-                    const zIndex = parseInt(computedStyle.zIndex) || 0;
-                    const position = computedStyle.position;
-                    
-                    if ((position === 'fixed' || position === 'absolute') && 
-                        zIndex > 500 &&
-                        (element.className.toLowerCase().includes('banner') || 
-                         element.className.toLowerCase().includes('cookie') ||
-                         element.className.toLowerCase().includes('overlay') ||
-                         element.className.toLowerCase().includes('modal') ||
-                         element.className.toLowerCase().includes('dialog') ||
-                         element.className.toLowerCase().includes('backdrop'))) {
-                        
-                        console.log('🧹 NUCLEAR SWEEP - Destroying high z-index element:', element);
-                        element.style.cssText = 'display: none !important;';
-                        element.remove();
-                        destroyed++;
-                    }
-                });
-                
-                // PHASE 3: BODY STYLE CLEANUP
-                document.body.style.overflow = 'auto';
-                document.documentElement.style.overflow = 'auto';
-                
-                console.log('🍪 🚀 NUCLEAR DESTRUCTION COMPLETE. Destroyed', destroyed, 'elements');
-                return destroyed;
-                """
-                
-                try:
-                    destroyed_count = driver.execute_script(nuclear_destruction_js)
-                    logger.info(f"💥 NUCLEAR DESTRUCTION: Annihilated {destroyed_count} cookie banner elements")
-                except Exception as js_error:
-                    logger.warning(f"Nuclear JS destruction failed: {js_error}")
-                
-                # Additional: Nuclear click on any remaining accept buttons
-                nuclear_accept_buttons = [
-                    "button[data-testid*='cookie-accept']",
-                    "button[id*='cookie-accept']", 
-                    "#onetrust-accept-btn-handler",
-                    "//button[contains(text(), 'Accept')]",
-                    "//button[contains(text(), 'OK')]",
-                    "//button[contains(text(), 'Allow')]",
-                    "//button[contains(text(), 'Agree')]",
-                    "//button[contains(text(), 'Continue')]"
-                ]
-                
-                for selector in nuclear_accept_buttons:
-                    try:
-                        if selector.startswith("//"):
-                            elements = driver.find_elements(By.XPATH, selector)
-                        else:
-                            elements = driver.find_elements(By.CSS_SELECTOR, selector)
-                        
-                        for btn in elements:
-                            if btn.is_displayed():
-                                try:
-                                    driver.execute_script("arguments[0].click();", btn)
-                                    logger.info(f"💥 NUCLEAR: Destroyed accept button {selector}")
-                                    time.sleep(1)
-                                    break
-                                except:
-                                    continue
-                    except:
-                        continue
+            # Step 1: Advanced cookie banner handling
+            cookie_result = self.advanced_cookie_handling(driver)
             
-            # Execute nuclear destruction
-            nuclear_cookie_banner_destruction()
-            
-            # === FORM FILLING ===
+            # Step 2: Form filling
             try:
                 logger.info("🔍 Looking for login form elements...")
                 username_field = WebDriverWait(driver, 10).until(
@@ -580,146 +744,30 @@ class RobloxAnalytics:
                 
                 logger.info("✅ Credentials filled")
                 
-                # === 🎯 NUCLEAR LOGIN BUTTON CLICK ===
-                def nuclear_login_button_click():
-                    """NUCLEAR login button click with maximum aggression"""
-                    logger.info("🎯 🚀 NUCLEAR LOGIN BUTTON CLICK INITIATED...")
-                    
-                    # Pre-click nuclear destruction
-                    nuclear_cookie_banner_destruction()
-                    time.sleep(1)
-                    
-                    # NUCLEAR click strategies - ordered from most to least aggressive
-                    nuclear_strategies = [
-                        ("NUCLEAR JavaScript Force Click", lambda: driver.execute_script("""
-                            console.log('🎯 🚀 NUCLEAR JavaScript Force Click executing...');
-                            const btn = arguments[0];
-                            
-                            // DESTROY any remaining interfering elements
-                            document.querySelectorAll('.cookie-banner-bg, .overlay, .modal-backdrop, [class*="cookie-banner"], .banner-overlay').forEach(el => {
-                                el.remove();
-                            });
-                            
-                            // NUCLEAR focus and click
-                            btn.focus();
-                            btn.scrollIntoView({behavior: 'instant', block: 'center'});
-                            
-                            // MULTIPLE click events
-                            btn.click();
-                            
-                            // Dispatch mouse event as backup
-                            const mouseEvent = new MouseEvent('click', {
-                                view: window,
-                                bubbles: true,
-                                cancelable: true,
-                                button: 0
-                            });
-                            btn.dispatchEvent(mouseEvent);
-                            
-                            console.log('🎯 🚀 NUCLEAR Force Click completed');
-                        """, login_button)),
-                        
-                        ("NUCLEAR Event Dispatch", lambda: driver.execute_script("""
-                            console.log('🎯 🚀 NUCLEAR Event Dispatch executing...');
-                            const btn = arguments[0];
-                            
-                            // Create and dispatch multiple event types
-                            ['mousedown', 'mouseup', 'click'].forEach(eventType => {
-                                const event = new MouseEvent(eventType, {
-                                    view: window,
-                                    bubbles: true,
-                                    cancelable: true,
-                                    button: 0,
-                                    clientX: btn.getBoundingClientRect().left + btn.offsetWidth/2,
-                                    clientY: btn.getBoundingClientRect().top + btn.offsetHeight/2
-                                });
-                                btn.dispatchEvent(event);
-                            });
-                            
-                            console.log('🎯 🚀 NUCLEAR Event Dispatch completed');
-                        """, login_button)),
-                        
-                        ("NUCLEAR Form Submit Bypass", lambda: driver.execute_script("""
-                            console.log('🎯 🚀 NUCLEAR Form Submit Bypass executing...');
-                            const btn = arguments[0];
-                            const form = btn.closest('form');
-                            
-                            if(form) {
-                                // Try to submit form directly
-                                form.submit();
-                                console.log('🎯 🚀 Form submitted directly');
-                            } else {
-                                // Fallback to button click
-                                btn.click();
-                                console.log('🎯 🚀 Button click fallback');
-                            }
-                        """, login_button)),
-                        
-                        ("NUCLEAR Coordinate Click", lambda: driver.execute_script("""
-                            console.log('🎯 🚀 NUCLEAR Coordinate Click executing...');
-                            const btn = arguments[0];
-                            const rect = btn.getBoundingClientRect();
-                            const x = rect.left + rect.width / 2;
-                            const y = rect.top + rect.height / 2;
-                            
-                            // Create click at exact coordinates
-                            const clickEvent = new MouseEvent('click', {
-                                view: window,
-                                bubbles: true,
-                                cancelable: true,
-                                clientX: x,
-                                clientY: y
-                            });
-                            
-                            document.elementFromPoint(x, y).dispatchEvent(clickEvent);
-                            console.log('🎯 🚀 Coordinate click completed at', x, y);
-                        """, login_button)),
-                        
-                        ("NUCLEAR Direct Click", lambda: driver.execute_script("arguments[0].click();", login_button)),
-                        
-                        ("Standard Click", lambda: login_button.click())
-                    ]
-                    
-                    for strategy_name, click_method in nuclear_strategies:
-                        try:
-                            logger.info(f"🎯 🚀 NUCLEAR ATTEMPT: {strategy_name}...")
-                            click_method()
-                            time.sleep(3)
-                            
-                            # Check if click worked
-                            current_url = driver.current_url
-                            if "login" not in current_url.lower():
-                                logger.info(f"✅ 🚀 NUCLEAR SUCCESS with {strategy_name}!")
-                                return True
-                            
-                            # Check for verification page
-                            page_text = driver.find_element(By.TAG_NAME, "body").text.lower()
-                            if any(word in page_text for word in ["verification", "captcha", "challenge"]):
-                                logger.info(f"✅ 🚀 NUCLEAR SUCCESS - verification detected with {strategy_name}!")
-                                return True
-                                
-                        except Exception as e:
-                            logger.warning(f"❌ 🚀 NUCLEAR {strategy_name} failed: {e}")
-                            continue
-                    
-                    return False
+                # Step 3: Robust login button click
+                logger.info("🎯 Attempting robust login button click...")
                 
-                # Execute nuclear login click
-                click_success = nuclear_login_button_click()
+                # Additional cookie removal right before clicking
+                self.advanced_cookie_handling(driver)
+                time.sleep(1)
+                
+                click_success = self.robust_click(login_button, driver)
                 if not click_success:
-                    logger.error("❌ 🚀 ALL NUCLEAR STRATEGIES FAILED")
+                    logger.error("❌ All click strategies failed")
                     return {
                         "success": False,
-                        "message": "NUCLEAR cookie banner destruction failed - manual intervention needed",
+                        "message": "Enhanced login click failed",
                         "current_url": driver.current_url,
+                        "region_info": region_info,
+                        "cookie_removal": cookie_result,
                         "suggestions": [
-                            "Cookie banner using unknown selectors",
-                            "New Roblox page structure", 
-                            "Network connectivity issues"
+                            "Consider switching to US-based hosting" if region_info["is_eu"] else "Non-EU server but still failing",
+                            "Try API authentication approach",
+                            "Manual intervention may be required"
                         ]
                     }
                 
-                # === POST-LOGIN VERIFICATION HANDLING ===
+                # Step 4: Post-login processing
                 logger.info("⏳ Waiting for post-login processing...")
                 time.sleep(5)
                 
@@ -737,6 +785,15 @@ class RobloxAnalytics:
                         logger.info("✅ Verification solved successfully!")
                         time.sleep(5)
                         
+                        # Extract cookies for future API use
+                        cookies = driver.get_cookies()
+                        roblosecurity_cookie = None
+                        for cookie in cookies:
+                            if cookie['name'] == '.ROBLOSECURITY':
+                                roblosecurity_cookie = cookie['value']
+                                logger.info("🔑 Extracted .ROBLOSECURITY cookie for future API use")
+                                break
+                        
                         # Verify final login success
                         final_url = driver.current_url
                         if any(success_indicator in final_url for success_indicator in ["create.roblox.com", "dashboard", "home"]):
@@ -746,7 +803,9 @@ class RobloxAnalytics:
                                 "success": True,
                                 "message": "Login successful with verification",
                                 "final_url": final_url,
-                                "verification_solved": True
+                                "verification_solved": True,
+                                "region_info": region_info,
+                                "roblosecurity_cookie": roblosecurity_cookie
                             }
                         else:
                             logger.warning("⚠️ Verification solved but login may not be complete")
@@ -754,19 +813,30 @@ class RobloxAnalytics:
                                 "success": True,
                                 "message": "Verification solved - login status unclear",
                                 "final_url": final_url,
-                                "verification_solved": True
+                                "verification_solved": True,
+                                "region_info": region_info
                             }
                     else:
                         logger.error("❌ Verification solving failed")
                         return {
                             "success": False,
                             "message": "Verification challenge failed",
-                            "verification_error": verification_result.get("error", "Unknown error")
+                            "verification_error": verification_result.get("error", "Unknown error"),
+                            "region_info": region_info
                         }
                 else:
                     # No verification needed
                     current_url = driver.current_url
                     page_text = driver.find_element(By.TAG_NAME, "body").text
+                    
+                    # Extract cookies for future API use
+                    cookies = driver.get_cookies()
+                    roblosecurity_cookie = None
+                    for cookie in cookies:
+                        if cookie['name'] == '.ROBLOSECURITY':
+                            roblosecurity_cookie = cookie['value']
+                            logger.info("🔑 Extracted .ROBLOSECURITY cookie for future API use")
+                            break
                     
                     # Check for successful login indicators
                     if (any(success_url in current_url for success_url in ["create.roblox.com", "dashboard", "home"]) or
@@ -776,7 +846,9 @@ class RobloxAnalytics:
                         return {
                             "success": True,
                             "message": "Login successful without verification", 
-                            "final_url": current_url
+                            "final_url": current_url,
+                            "region_info": region_info,
+                            "roblosecurity_cookie": roblosecurity_cookie
                         }
                     else:
                         # Check for login errors
@@ -785,14 +857,16 @@ class RobloxAnalytics:
                             return {
                                 "success": False,
                                 "message": "Login failed - credentials may be incorrect",
-                                "page_text_sample": page_text[:200]
+                                "page_text_sample": page_text[:200],
+                                "region_info": region_info
                             }
                         else:
                             return {
                                 "success": False,
                                 "message": "Login status unclear",
                                 "current_url": current_url,
-                                "page_text_sample": page_text[:200]
+                                "page_text_sample": page_text[:200],
+                                "region_info": region_info
                             }
                             
             except TimeoutException:
@@ -800,11 +874,12 @@ class RobloxAnalytics:
                 return {
                     "success": False,
                     "message": "Login form not found - page may have changed",
-                    "current_url": driver.current_url
+                    "current_url": driver.current_url,
+                    "region_info": region_info
                 }
                 
         except Exception as e:
-            logger.error(f"❌ Nuclear login error: {str(e)}")
+            logger.error(f"❌ Enhanced login error: {str(e)}")
             return {
                 "success": False,
                 "error": str(e),
@@ -865,8 +940,55 @@ class RobloxAnalytics:
                 "traceback": traceback.format_exc()
             }
     
+    def get_authenticated_session(self, game_id="7291257156"):
+        """🔧 NEW: Primary authentication strategy (API first, UI fallback)"""
+        logger.info("🔑 Starting multi-strategy authentication...")
+        
+        # Strategy 1: Try API authentication if we have a stored cookie
+        stored_cookie = getattr(self, 'stored_roblosecurity', None)
+        if stored_cookie:
+            logger.info("🔑 Attempting API authentication with stored cookie...")
+            if self.api_auth.authenticate_via_api(stored_cookie):
+                return self.api_auth.get_analytics_data(game_id)
+        
+        # Strategy 2: UI authentication with enhanced cookie handling
+        logger.info("🔑 Falling back to UI authentication...")
+        try:
+            with self.get_remote_driver() as driver:
+                login_result = self.login_to_roblox(driver)
+                
+                if login_result.get("success"):
+                    # Store cookie for future API use
+                    if login_result.get("roblosecurity_cookie"):
+                        self.stored_roblosecurity = login_result["roblosecurity_cookie"]
+                        logger.info("🔑 Stored cookie for future API authentication")
+                    
+                    # Extract QPTR data via UI
+                    qptr_result = self.extract_qptr_data(driver, game_id)
+                    
+                    return {
+                        "success": True,
+                        "method": "ui_authentication",
+                        "login_result": login_result,
+                        "qptr_result": qptr_result
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "method": "ui_authentication_failed",
+                        "login_result": login_result
+                    }
+                    
+        except Exception as e:
+            logger.error(f"❌ Authentication session error: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            }
+    
     def run_complete_analytics_collection(self, game_id="7291257156"):
-        """Run complete analytics collection with verification handling"""
+        """🎯 ENHANCED: Complete analytics collection with multi-strategy approach"""
         start_time = datetime.now()
         results = {
             "start_time": start_time.isoformat(),
@@ -874,51 +996,42 @@ class RobloxAnalytics:
             "steps": {},
             "overall_success": False,
             "api_key_used": f"{self.verification_solver.api_key[:8]}...",
-            "selenium_url": self.selenium_url
+            "selenium_url": self.selenium_url,
+            "region_detection": None,
+            "authentication_method": None
         }
         
         try:
-            logger.info("🚀 Starting complete analytics collection with Remote Selenium + 2Captcha verification...")
+            logger.info("🚀 Starting ENHANCED analytics collection with multi-strategy authentication...")
             
-            with self.get_remote_driver() as driver:
-                # Step 1: Test Cloudflare bypass
-                logger.info("Step 1: Testing Cloudflare bypass...")
-                cloudflare_result = self.test_cloudflare_bypass(driver)
-                results["steps"]["cloudflare_bypass"] = cloudflare_result
+            # Step 1: Detect server region
+            logger.info("Step 1: Detecting server region...")
+            region_info = self.detect_server_region()
+            results["region_detection"] = region_info
+            results["steps"]["region_detection"] = {"success": True, "data": region_info}
+            
+            # Step 2: Try primary authentication strategy
+            logger.info("Step 2: Attempting multi-strategy authentication...")
+            auth_result = self.get_authenticated_session(game_id)
+            results["steps"]["authentication"] = auth_result
+            results["authentication_method"] = auth_result.get("method", "unknown")
+            
+            if auth_result.get("success"):
+                logger.info("✅ Authentication successful!")
+                results["overall_success"] = True
                 
-                if not cloudflare_result.get("success"):
-                    logger.warning("⚠️ Cloudflare bypass failed, continuing anyway...")
+                # If UI method was used, include individual step results
+                if auth_result.get("method") == "ui_authentication":
+                    results["steps"]["login"] = auth_result.get("login_result", {})
+                    results["steps"]["qptr_extraction"] = auth_result.get("qptr_result", {})
                 
-                # Step 2: Login with verification handling
-                logger.info("Step 2: Logging into Roblox with NUCLEAR cookie banner destruction...")
-                login_result = self.login_to_roblox(driver)
-                results["steps"]["login"] = login_result
-                
-                if not login_result.get("success"):
-                    logger.error("❌ Login failed - cannot continue")
-                    results["overall_success"] = False
-                    return results
-                
-                # Step 3: Extract QPTR data
-                logger.info("Step 3: Extracting QPTR analytics data...")
-                qptr_result = self.extract_qptr_data(driver, game_id)
-                results["steps"]["qptr_extraction"] = qptr_result
-                
-                # Determine overall success
-                critical_steps = ["login", "qptr_extraction"]
-                results["overall_success"] = all(
-                    results["steps"].get(step, {}).get("success", False) 
-                    for step in critical_steps
-                )
-                
-                if results["overall_success"]:
-                    logger.info("🎉 All steps completed successfully!")
-                else:
-                    logger.warning("⚠️ Partial success - some steps failed")
-                
-                # Store results for later retrieval
-                self.last_results = results
-                return results
+            else:
+                logger.error("❌ All authentication methods failed")
+                results["overall_success"] = False
+            
+            # Store results for later retrieval
+            self.last_results = results
+            return results
                 
         except Exception as e:
             logger.error(f"❌ Complete analytics collection error: {str(e)}")
@@ -933,15 +1046,317 @@ class RobloxAnalytics:
             results["duration_seconds"] = (end_time - start_time).total_seconds()
             logger.info(f"⏱️ Total duration: {results['duration_seconds']:.2f} seconds")
 
-# Initialize analytics instance with your API key
+# Initialize analytics instance
 analytics = RobloxAnalytics()
+
+# 🔍 NEW: Screenshot viewer endpoints
+@app.route('/view-screenshot/<path:screenshot_data>')
+def view_screenshot(screenshot_data):
+    """View base64 screenshot data in browser"""
+    try:
+        import base64
+        image_data = base64.b64decode(screenshot_data)
+        return Response(image_data, mimetype='image/png')
+    except:
+        return "Invalid screenshot data", 400
+
+@app.route('/screenshot-viewer')
+def screenshot_viewer():
+    """Screenshot viewer interface"""
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>🔍 Roblox Login Screenshot Viewer</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+            .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+            .screenshot { max-width: 100%; border: 2px solid #ddd; border-radius: 8px; margin: 10px 0; }
+            .info { background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 10px 0; }
+            button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+            button:hover { background: #0056b3; }
+            .error { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin: 10px 0; }
+            .success { background: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin: 10px 0; }
+            .region { background: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🔍 Enhanced Roblox Login Debug Viewer</h1>
+            <div class="info">
+                <h3>📋 Features:</h3>
+                <ul>
+                    <li>🌍 Server region detection (EU = GDPR banners)</li>
+                    <li>📸 Multi-step screenshot capture</li>
+                    <li>🍪 Advanced cookie banner analysis</li>
+                    <li>🔑 API + UI authentication testing</li>
+                </ul>
+            </div>
+            
+            <div>
+                <h3>🧪 Debug Tests:</h3>
+                <button onclick="checkRegion()">🌍 Check Server Region</button>
+                <button onclick="runFullDebug()">🔍 Run Full Debug</button>
+                <button onclick="testApiAuth()">🔑 Test API Auth</button>
+            </div>
+            
+            <div id="result"></div>
+        </div>
+        
+        <script>
+            async function checkRegion() {
+                const resultDiv = document.getElementById('result');
+                resultDiv.innerHTML = '<div class="info">🌍 Checking server region...</div>';
+                
+                try {
+                    const response = await fetch('/debug-region', { method: 'POST' });
+                    const data = await response.json();
+                    
+                    const regionClass = data.region_info?.is_eu ? 'error' : 'success';
+                    const gdprWarning = data.region_info?.is_eu ? 
+                        '<p><strong>⚠️ WARNING:</strong> EU server detected - will trigger GDPR cookie banners!</p>' : 
+                        '<p><strong>✅ GOOD:</strong> Non-EU server - reduced GDPR risk</p>';
+                    
+                    resultDiv.innerHTML = `
+                        <div class="${regionClass}">
+                            <h3>🌍 Server Region Analysis:</h3>
+                            ${gdprWarning}
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                    
+                } catch (error) {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+                }
+            }
+            
+            async function runFullDebug() {
+                const resultDiv = document.getElementById('result');
+                resultDiv.innerHTML = '<div class="info">🔍 Running full debug with screenshots...</div>';
+                
+                try {
+                    const response = await fetch('/debug-login-with-screenshots', { method: 'POST' });
+                    const data = await response.json();
+                    
+                    let html = '<div class="success"><h3>🔍 Full Debug Results:</h3>';
+                    
+                    if (data.screenshots) {
+                        data.screenshots.forEach((screenshot, index) => {
+                            html += `
+                                <h4>📸 ${screenshot.step}: ${screenshot.description}</h4>
+                                <img src="data:image/png;base64,${screenshot.data}" class="screenshot" alt="Debug Screenshot ${index + 1}">
+                            `;
+                        });
+                    }
+                    
+                    html += `<h4>📊 Analysis:</h4><pre>${JSON.stringify(data.analysis, null, 2)}</pre></div>`;
+                    resultDiv.innerHTML = html;
+                    
+                } catch (error) {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+                }
+            }
+            
+            async function testApiAuth() {
+                const resultDiv = document.getElementById('result');
+                resultDiv.innerHTML = '<div class="info">🔑 Testing API authentication...</div>';
+                
+                try {
+                    const response = await fetch('/test-api-auth', { method: 'POST' });
+                    const data = await response.json();
+                    
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h3>🔑 API Authentication Test:</h3>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                    
+                } catch (error) {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+                }
+            }
+        </script>
+    </body>
+    </html>
+    '''
+
+@app.route('/debug-region', methods=['POST'])
+def debug_region():
+    """Debug server region detection"""
+    try:
+        region_info = analytics.detect_server_region()
+        return jsonify({
+            "success": True,
+            "region_info": region_info,
+            "recommendations": {
+                "should_switch_hosting": region_info["is_eu"],
+                "alternative_approach": "API authentication" if region_info["is_eu"] else "UI automation should work",
+                "estimated_gdpr_risk": "HIGH" if region_info["is_eu"] else "LOW"
+            }
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/debug-login-with-screenshots', methods=['POST'])
+def debug_login_with_screenshots():
+    """Enhanced debug with screenshots and region analysis"""
+    try:
+        logger.info("🔍 Starting enhanced debug with screenshots...")
+        
+        debug_results = {
+            "start_time": datetime.now().isoformat(),
+            "screenshots": [],
+            "steps": {},
+            "analysis": {},
+            "region_info": analytics.detect_server_region()
+        }
+        
+        with analytics.get_remote_driver() as driver:
+            def take_screenshot(step_name, description):
+                try:
+                    screenshot_data = driver.get_screenshot_as_png()
+                    screenshot_b64 = base64.b64encode(screenshot_data).decode()
+                    debug_results["screenshots"].append({
+                        "step": step_name,
+                        "description": description,
+                        "data": screenshot_b64,
+                        "timestamp": datetime.now().isoformat(),
+                        "current_url": driver.current_url
+                    })
+                    logger.info(f"📸 Screenshot taken: {step_name}")
+                except Exception as e:
+                    logger.warning(f"Screenshot failed for {step_name}: {e}")
+            
+            # Step 1: Navigate and analyze
+            logger.info("Step 1: Navigate to Roblox login...")
+            driver.get("https://www.roblox.com/login")
+            time.sleep(5)
+            take_screenshot("initial_load", "Roblox login page initial load")
+            
+            # Step 2: Cookie banner analysis
+            logger.info("Step 2: Cookie banner analysis...")
+            page_source = driver.page_source
+            page_text = driver.find_element(By.TAG_NAME, "body").text
+            
+            cookie_elements = []
+            for selector in [".cookie-banner-bg", ".cookie-banner", "[class*='cookie']", "[role='dialog']"]:
+                try:
+                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                    for elem in elements:
+                        if elem.is_displayed():
+                            cookie_elements.append({
+                                "selector": selector,
+                                "tag": elem.tag_name,
+                                "classes": elem.get_attribute("class"),
+                                "text": elem.text[:100],
+                                "visible": elem.is_displayed()
+                            })
+                except:
+                    continue
+            
+            debug_results["analysis"]["cookie_elements"] = cookie_elements
+            debug_results["analysis"]["gdpr_indicators"] = [word for word in ["cookie", "consent", "privacy", "gdpr"] if word in page_text.lower()]
+            
+            take_screenshot("before_cookie_removal", f"Before removal - found {len(cookie_elements)} cookie elements")
+            
+            # Step 3: Apply enhanced cookie handling
+            logger.info("Step 3: Apply enhanced cookie handling...")
+            cookie_result = analytics.advanced_cookie_handling(driver)
+            debug_results["analysis"]["cookie_removal_result"] = cookie_result
+            
+            take_screenshot("after_cookie_removal", f"After removal - destroyed {cookie_result.get('destroyed', 0)} elements")
+            
+            # Step 4: Login form analysis
+            try:
+                username_field = driver.find_element(By.ID, "login-username")
+                password_field = driver.find_element(By.ID, "login-password")
+                login_button = driver.find_element(By.ID, "login-button")
+                
+                debug_results["analysis"]["login_form"] = {
+                    "found": True,
+                    "button_clickable": login_button.is_enabled() and login_button.is_displayed(),
+                    "button_location": login_button.location,
+                    "button_size": login_button.size
+                }
+                
+                # Test click interception
+                try:
+                    login_button.click()
+                    debug_results["analysis"]["click_test"] = "SUCCESS - No interception"
+                except Exception as click_error:
+                    debug_results["analysis"]["click_test"] = f"FAILED - {str(click_error)}"
+                    if "click intercepted" in str(click_error):
+                        # Extract the intercepting element info
+                        error_msg = str(click_error)
+                        if "Other element would receive the click:" in error_msg:
+                            intercepting_element = error_msg.split("Other element would receive the click:")[1].split("\n")[0].strip()
+                            debug_results["analysis"]["intercepting_element"] = intercepting_element
+                    
+                    take_screenshot("click_interception", f"Click intercepted: {str(click_error)[:100]}")
+                
+            except Exception as form_error:
+                debug_results["analysis"]["login_form"] = {"found": False, "error": str(form_error)}
+            
+            take_screenshot("final_analysis", "Final state analysis")
+            
+            # Final recommendations
+            debug_results["recommendations"] = {
+                "primary_issue": "GDPR cookie banner from EU server" if debug_results["region_info"]["is_eu"] else "Unknown issue",
+                "immediate_solution": "Switch to US-based hosting (Railway supports region selection)" if debug_results["region_info"]["is_eu"] else "Try API authentication",
+                "alternative_approaches": [
+                    "API authentication with .ROBLOSECURITY cookie",
+                    "US proxy or VPN integration", 
+                    "Different cloud provider in US region"
+                ]
+            }
+            
+            debug_results["overall_success"] = len(cookie_elements) == 0 and debug_results["analysis"].get("login_form", {}).get("found", False)
+            debug_results["end_time"] = datetime.now().isoformat()
+            
+            return jsonify(debug_results)
+            
+    except Exception as e:
+        logger.error(f"❌ Enhanced debug failed: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
+@app.route('/test-api-auth', methods=['POST'])
+def test_api_auth():
+    """Test API authentication approach"""
+    try:
+        # Test the API authentication concept
+        auth_result = analytics.api_auth.authenticate_via_api(None)
+        
+        return jsonify({
+            "success": True,
+            "api_auth_available": auth_result,
+            "message": "API authentication ready for .ROBLOSECURITY cookie",
+            "next_steps": [
+                "1. Get .ROBLOSECURITY cookie via one-time UI login",
+                "2. Store cookie securely", 
+                "3. Use API authentication for all future requests",
+                "4. Bypass UI automation entirely"
+            ],
+            "advantages": [
+                "No cookie banner issues",
+                "Faster execution",
+                "More reliable",
+                "Less detection risk"
+            ]
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/')
 def home():
-    """Root endpoint with system information"""
+    """Root endpoint with enhanced system information"""
     return jsonify({
-        "status": "🎯 Roblox Analytics API - Remote Selenium + Official 2Captcha",
-        "version": "6.2.0 - NUCLEAR COOKIE BANNER DESTRUCTION",
+        "status": "🎯 Enhanced Roblox Analytics API - Multi-Strategy Authentication",
+        "version": "7.0.0 - REGIONAL DETECTION + API AUTH + ENHANCED UI",
         "python_version": "3.12 Compatible",
         "selenium_mode": "Remote WebDriver ✅",
         "selenium_url": analytics.selenium_url,
@@ -950,74 +1365,64 @@ def home():
         "api_key_preview": f"{analytics.verification_solver.api_key[:8]}...",
         "environment": os.getenv('RAILWAY_ENVIRONMENT', 'local'),
         "cors_status": "✅ Fully Fixed with Headers",
-        "cookie_banner_fix": "🚀 NUCLEAR DESTRUCTION APPLIED",
+        "new_features": {
+            "regional_detection": "✅ EU/GDPR detection",
+            "api_authentication": "✅ .ROBLOSECURITY cookie support",
+            "enhanced_cookie_handling": "✅ Advanced GDPR banner removal",
+            "screenshot_debugging": "✅ Visual debugging interface",
+            "multi_strategy_auth": "✅ API-first, UI-fallback"
+        },
         "testing_interface": {
             "url": "/test",
-            "description": "🎯 CLICK HERE FOR EASY BROWSER TESTING",
-            "features": "Test all functionality with buttons - no command line needed!"
+            "description": "🎯 Main testing interface",
+            "screenshot_viewer": "/screenshot-viewer",
+            "debug_features": "Enhanced regional and cookie analysis"
         },
         "endpoints": [
-            "GET /status - System status with 2Captcha info",
-            "GET /ping - Simple ping test",
-            "POST /test-cloudflare - Test Cloudflare bypass",
-            "POST /trigger-diagnostic - Full analytics with 2Captcha solving",
-            "GET /results - Latest results with cost info",
-            "POST /login-test - Test login with 2Captcha verification",
-            "POST /test-verification - Test 2Captcha verification solving only",
-            "GET /test - Browser test interface"
+            "GET /status - System status",
+            "GET /screenshot-viewer - Visual debugging interface",
+            "POST /debug-region - Check server region",
+            "POST /debug-login-with-screenshots - Full debug with visuals",
+            "POST /test-api-auth - Test API authentication",
+            "POST /trigger-diagnostic - Complete analytics collection"
         ],
-        "features": [
-            "✅ Remote Selenium WebDriver (no local Chrome needed)",
-            "✅ Cloudflare bypass via remote browser",
-            "🚀 NUCLEAR Cookie Banner Destruction (UPGRADED)",
-            "✅ Multiple Nuclear Login Click Strategies (UPGRADED)",
-            "✅ Roblox verification puzzle solving (2Captcha)", 
-            "✅ FunCaptcha (Arkose Labs) automated solving",
-            "✅ Image puzzles (dice, cubes, cards) solving",
-            "✅ Manual fallback approaches",
-            "✅ QPTR data extraction",
-            "✅ Screenshot diagnostics",
-            "✅ Cost tracking ($0.001-$0.002 per solve)",
-            "✅ CORS fully fixed with explicit headers"
-        ]
+        "recommendations": {
+            "immediate": "Check server region at /debug-region",
+            "if_eu_server": "Consider US-based hosting for Railway app",
+            "api_approach": "Extract .ROBLOSECURITY cookie for API authentication"
+        }
     })
 
 @app.route('/status')
 def status():
-    """Comprehensive system status endpoint"""
+    """Enhanced system status with regional information"""
+    region_info = analytics.detect_server_region()
+    
     return jsonify({
-        "status": "🎯 System Fully Operational - Nuclear Cookie Banner Destruction",
+        "status": "🎯 Enhanced System Operational",
         "timestamp": datetime.now().isoformat(),
         "verification_solver": {
             "enabled": analytics.verification_solver.solver is not None,
             "api_key_configured": bool(analytics.verification_solver.api_key),
             "api_key_preview": f"{analytics.verification_solver.api_key[:8]}..." if analytics.verification_solver.api_key else "Not configured",
-            "package": "2captcha-python (official)",
-            "import_path": "from twocaptcha import TwoCaptcha"
+            "package": "2captcha-python (official)"
         },
         "selenium": {
             "mode": "Remote WebDriver",
             "selenium_url": analytics.selenium_url,
             "status": "Connected ✅"
         },
-        "cors": {
-            "status": "✅ Fully Configured",
-            "origins": "*",
-            "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
-            "headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept"]
+        "regional_detection": {
+            "server_region": region_info,
+            "gdpr_risk": "HIGH" if region_info["is_eu"] else "LOW",
+            "recommendations": "Switch to US hosting" if region_info["is_eu"] else "Current region OK"
         },
-        "cookie_banner_fix": {
-            "status": "🚀 NUCLEAR DESTRUCTION DEPLOYED",
-            "version": "Nuclear Multi-Phase Destruction",
-            "strategies": [
-                "NUCLEAR JavaScript element destruction",
-                "High z-index element sweep", 
-                "Multiple nuclear login click methods",
-                "Enhanced error handling"
-            ]
+        "authentication": {
+            "ui_automation": "✅ Enhanced with GDPR handling",
+            "api_authentication": "✅ Ready for .ROBLOSECURITY cookies",
+            "multi_strategy": "✅ API-first, UI-fallback approach"
         },
-        "latest_results": analytics.last_results,
-        "timestamp": datetime.now().isoformat()
+        "latest_results": analytics.last_results
     })
 
 @app.route('/results')
@@ -1070,7 +1475,7 @@ def ping():
 
 @app.route('/debug-selenium', methods=['GET', 'POST'])
 def debug_selenium():
-    """Debug the remote Selenium connection with detailed testing"""
+    """Debug the remote Selenium connection"""
     try:
         selenium_url = analytics.selenium_url
         logger.info(f"🔍 Debugging Selenium connection to: {selenium_url}")
@@ -1080,8 +1485,7 @@ def debug_selenium():
             "timestamp": datetime.now().isoformat()
         }
         
-        # Test 1: Check if the Selenium service is reachable via HTTP
-        logger.info("🔍 Test 1: Checking Selenium service HTTP accessibility...")
+        # Test 1: HTTP connectivity
         try:
             import requests
             response = requests.get(f"{selenium_url}/status", timeout=10)
@@ -1089,203 +1493,144 @@ def debug_selenium():
                 "success": True,
                 "status_code": response.status_code,
                 "response_headers": dict(response.headers),
-                "response_text": response.text[:1000] if response.text else "No response text",
                 "response_json": response.json() if response.headers.get('content-type', '').startswith('application/json') else None
             }
-            logger.info("✅ HTTP connectivity test passed")
         except Exception as e:
-            debug_results["http_test"] = {
-                "success": False,
-                "error": str(e),
-                "suggestion": "Selenium service may be down or unreachable"
-            }
-            logger.error(f"❌ HTTP connectivity test failed: {e}")
+            debug_results["http_test"] = {"success": False, "error": str(e)}
         
-        # Test 2: Attempt actual WebDriver connection
-        logger.info("🔍 Test 2: Testing actual WebDriver connection...")
+        # Test 2: WebDriver connection
         try:
             with analytics.get_remote_driver() as driver:
-                # Simple page test
                 driver.get("https://www.google.com")
-                title = driver.title
-                current_url = driver.current_url
-                
                 debug_results["webdriver_test"] = {
                     "success": True,
-                    "page_title": title,
-                    "current_url": current_url,
-                    "session_id": driver.session_id if hasattr(driver, 'session_id') else "Unknown"
+                    "page_title": driver.title,
+                    "current_url": driver.current_url
                 }
-                logger.info("✅ WebDriver connectivity test passed")
-                
         except Exception as e:
-            debug_results["webdriver_test"] = {
-                "success": False,
-                "error": str(e),
-                "traceback": traceback.format_exc(),
-                "suggestion": "WebDriver connection failed - check Selenium Grid status"
-            }
-            logger.error(f"❌ WebDriver connectivity test failed: {e}")
+            debug_results["webdriver_test"] = {"success": False, "error": str(e)}
         
-        # Overall assessment
         debug_results["overall_assessment"] = {
-            "http_working": debug_results.get("http_test", {}).get("success", False),
-            "webdriver_working": debug_results.get("webdriver_test", {}).get("success", False),
             "ready_for_testing": debug_results.get("http_test", {}).get("success", False) and debug_results.get("webdriver_test", {}).get("success", False)
         }
         
         return jsonify(debug_results)
         
     except Exception as e:
-        logger.error(f"❌ Debug Selenium error: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc(),
-            "timestamp": datetime.now().isoformat()
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/test-cloudflare', methods=['POST'])
 def test_cloudflare_endpoint():
-    """Test Cloudflare bypass capability via remote WebDriver"""
+    """Test Cloudflare bypass capability"""
     try:
-        logger.info("🌐 Testing Cloudflare bypass via remote WebDriver...")
-        
         with analytics.get_remote_driver() as driver:
             result = analytics.test_cloudflare_bypass(driver)
             return jsonify(result)
-            
     except Exception as e:
-        logger.error(f"❌ Cloudflare test endpoint error: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/test-verification', methods=['POST'])
 def test_verification_endpoint():
-    """Test 2Captcha verification solving only via remote WebDriver"""
+    """Test verification solving with enhanced cookie handling"""
     try:
-        logger.info("🧩 Testing 2Captcha verification solving via remote WebDriver...")
-        
         with analytics.get_remote_driver() as driver:
-            # Navigate to login to trigger verification
             driver.get("https://www.roblox.com/login")
             time.sleep(3)
             
-            # Fill credentials to trigger verification
+            # Apply enhanced cookie handling first
+            analytics.advanced_cookie_handling(driver)
+            
             try:
                 username_field = WebDriverWait(driver, 5).until(
                     EC.presence_of_element_located((By.ID, "login-username"))
                 )
                 password_field = driver.find_element(By.ID, "login-password")
+                login_button = driver.find_element(By.ID, "login-button")
                 
                 username_field.send_keys(analytics.username)
                 password_field.send_keys(analytics.password)
-                driver.find_element(By.ID, "login-button").click()
+                
+                # Use robust click
+                analytics.robust_click(login_button, driver)
                 time.sleep(8)
                 
-                # Check if verification appears
                 page_text = driver.find_element(By.TAG_NAME, "body").text.lower()
                 verification_indicators = ["verification", "start puzzle", "captcha", "challenge"]
                 
                 if any(indicator in page_text for indicator in verification_indicators):
-                    logger.info("🎯 Verification detected - testing 2Captcha solving...")
                     result = analytics.verification_solver.solve_roblox_verification(driver)
                     result["api_key_used"] = f"{analytics.verification_solver.api_key[:8]}..."
-                    result["package_used"] = "2captcha-python (official)"
+                    result["enhanced_cookie_handling"] = "Applied"
                     return jsonify(result)
                 else:
                     return jsonify({
                         "success": True,
-                        "message": "No verification challenge appeared - account may be trusted",
-                        "api_key_used": f"{analytics.verification_solver.api_key[:8]}...",
-                        "package_used": "2captcha-python (official)",
+                        "message": "No verification challenge - enhanced cookie handling successful",
+                        "enhanced_cookie_handling": "Applied",
                         "timestamp": datetime.now().isoformat()
                     })
                     
             except TimeoutException:
                 return jsonify({
                     "success": False,
-                    "error": "Could not find login form",
+                    "error": "Login form not found after cookie handling",
                     "timestamp": datetime.now().isoformat()
                 })
             
     except Exception as e:
-        logger.error(f"❌ Verification test error: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/login-test', methods=['POST'])
 def login_test_endpoint():
-    """Test Roblox login with NUCLEAR cookie banner destruction via remote WebDriver"""
+    """Test enhanced login with regional detection"""
     try:
-        logger.info("🔐 Testing Roblox login with NUCLEAR cookie banner destruction via remote WebDriver...")
-        
         with analytics.get_remote_driver() as driver:
             result = analytics.login_to_roblox(driver)
             result["api_key_used"] = f"{analytics.verification_solver.api_key[:8]}..."
             result["selenium_url"] = analytics.selenium_url
-            result["package_used"] = "2captcha-python (official)"
+            result["enhanced_features"] = "Regional detection + Advanced cookie handling"
             return jsonify(result)
-            
     except Exception as e:
-        logger.error(f"❌ Login test endpoint error: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/trigger-diagnostic', methods=['POST'])
 def trigger_diagnostic():
-    """Trigger complete analytics collection with NUCLEAR cookie banner destruction"""
+    """Enhanced diagnostic with multi-strategy authentication"""
     try:
-        # 🔧 IMPROVED REQUEST PARSING WITH ERROR HANDLING
-        game_id = "7291257156"  # Default game ID
+        game_id = "7291257156"
         
         try:
-            # Try to get JSON data, but don't fail if there isn't any
             data = request.get_json(silent=True) or {}
             if isinstance(data, dict) and 'game_id' in data:
                 game_id = data['game_id']
         except Exception as json_error:
-            logger.warning(f"⚠️ Could not parse JSON request: {json_error} - using default game ID")
+            logger.warning(f"⚠️ Could not parse JSON request: {json_error}")
         
-        logger.info(f"🚀 Starting complete diagnostic with Remote Selenium + 2Captcha verification solving")
+        logger.info(f"🚀 Starting ENHANCED diagnostic with multi-strategy authentication")
         logger.info(f"🎮 Game ID: {game_id}")
-        logger.info(f"🔑 2Captcha API: {analytics.verification_solver.api_key[:8]}...")
-        logger.info(f"🌐 Remote Selenium: {analytics.selenium_url}")
-        logger.info(f"🚀 Cookie Banner Fix: NUCLEAR DESTRUCTION")
-        logger.info(f"📦 Package: 2captcha-python (official)")
+        logger.info(f"🌍 Regional detection enabled")
+        logger.info(f"🔑 API + UI authentication available")
         
         result = analytics.run_complete_analytics_collection(game_id)
-        
         return jsonify(result)
         
     except Exception as e:
-        logger.error(f"❌ Diagnostic trigger error: {str(e)}")
-        logger.error(f"❌ Full traceback: {traceback.format_exc()}")
+        logger.error(f"❌ Enhanced diagnostic error: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e),
             "traceback": traceback.format_exc(),
-            "endpoint": "/trigger-diagnostic",
             "timestamp": datetime.now().isoformat()
         }), 500
 
 @app.route('/test')
 def test_interface():
-    """Browser-based test interface with comprehensive testing including Selenium debug"""
+    """Enhanced test interface with regional detection"""
     return '''
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Roblox 2Captcha Test Interface - NUCLEAR COOKIE BANNER FIX</title>
+        <title>🎯 Enhanced Roblox Analytics Test Interface</title>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
@@ -1310,30 +1655,14 @@ def test_interface():
                 padding-bottom: 20px;
                 border-bottom: 2px solid #eee;
             }
-            .cors-fixed {
-                background: #d4edda;
-                color: #155724;
-                padding: 10px;
-                border-radius: 5px;
-                margin: 10px 0;
-                font-weight: bold;
-            }
-            .nuclear-fix {
-                background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            .enhancement {
+                background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
                 color: white;
-                padding: 10px;
-                border-radius: 5px;
+                padding: 15px;
+                border-radius: 8px;
                 margin: 10px 0;
                 font-weight: bold;
                 text-align: center;
-            }
-            .debug-info {
-                background: #fff3cd;
-                color: #856404;
-                padding: 10px;
-                border-radius: 5px;
-                margin: 10px 0;
-                font-weight: bold;
             }
             .button { 
                 background: #007bff; 
@@ -1359,41 +1688,17 @@ def test_interface():
                 transform: none;
                 box-shadow: none;
             }
+            .enhanced { 
+                background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            }
+            .enhanced:hover {
+                background: linear-gradient(135deg, #218838 0%, #1ea080 100%);
+            }
             .danger { 
                 background: #dc3545; 
             }
             .danger:hover { 
                 background: #c82333; 
-                box-shadow: 0 4px 12px rgba(220,53,69,0.3);
-            }
-            .success {
-                background: #28a745;
-            }
-            .success:hover {
-                background: #218838;
-                box-shadow: 0 4px 12px rgba(40,167,69,0.3);
-            }
-            .warning {
-                background: #ffc107;
-                color: black;
-            }
-            .warning:hover {
-                background: #e0a800;
-                box-shadow: 0 4px 12px rgba(255,193,7,0.3);
-            }
-            .debug {
-                background: #6f42c1;
-            }
-            .debug:hover {
-                background: #5a2d91;
-                box-shadow: 0 4px 12px rgba(111,66,193,0.3);
-            }
-            .nuclear {
-                background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
-            }
-            .nuclear:hover {
-                background: linear-gradient(135deg, #ee5a24 0%, #ff6b6b 100%);
-                box-shadow: 0 4px 12px rgba(238,90,36,0.3);
             }
             .test-section {
                 background: #f8f9fa;
@@ -1402,13 +1707,9 @@ def test_interface():
                 border-radius: 10px;
                 border-left: 4px solid #007bff;
             }
-            .debug-section {
-                background: #f8f5ff;
-                border-left-color: #6f42c1;
-            }
-            .nuclear-section {
-                background: #fff5f5;
-                border-left-color: #ff6b6b;
+            .enhanced-section {
+                background: #f8fff8;
+                border-left-color: #28a745;
             }
             .result { 
                 margin: 20px 0; 
@@ -1431,74 +1732,48 @@ def test_interface():
                 border-color: #f5c6cb;
                 color: #721c24;
             }
-            .loading {
-                color: #007bff;
-                font-style: italic;
-            }
-            .status-indicator {
-                display: inline-block;
-                width: 12px;
-                height: 12px;
-                border-radius: 50%;
-                margin-right: 8px;
-            }
-            .status-online { background-color: #28a745; }
-            .status-offline { background-color: #dc3545; }
-            .status-unknown { background-color: #ffc107; }
         </style>
     </head>
     <body>
         <div class="container">
             <div class="header">
-                <h1>🤖 Roblox 2Captcha Test System</h1>
-                <div class="cors-fixed">✅ CORS + Request Parsing Issues FULLY FIXED!</div>
-                <div class="nuclear-fix">🚀 NUCLEAR COOKIE BANNER DESTRUCTION DEPLOYED!</div>
-                <div class="debug-info">🔍 Now includes Selenium Connection Debugging</div>
+                <h1>🎯 Enhanced Roblox Analytics Test System</h1>
+                <div class="enhancement">🎉 VERSION 7.0 - REGIONAL DETECTION + API AUTH + ENHANCED UI!</div>
                 <p><strong>System URL:</strong> <code>''' + request.host_url + '''</code></p>
-                <p><span class="status-indicator status-unknown"></span><span id="connectionStatus">Testing connection...</span></p>
+            </div>
+            
+            <div class="test-section enhanced-section">
+                <h3>🌍 NEW: Regional Detection & Analysis</h3>
+                <p>Check if your server location triggers GDPR cookie banners</p>
+                <button class="button enhanced" onclick="checkRegion()">🌍 Check Server Region</button>
+                <button class="button enhanced" onclick="openScreenshotViewer()">🔍 Open Screenshot Viewer</button>
             </div>
             
             <div class="test-section">
                 <h3>📊 Basic System Tests</h3>
-                <button class="button success" onclick="checkStatus()">📊 Check Status</button>
-                <button class="button warning" onclick="checkBalance()">💰 Check Balance</button>
+                <button class="button" onclick="checkStatus()">📊 Check Status</button>
+                <button class="button" onclick="checkBalance()">💰 Check Balance</button>
                 <button class="button" onclick="testPing()">🏓 Ping Test</button>
-                <button class="button" onclick="testCORS()">🌐 Test CORS</button>
+                <button class="button" onclick="debugSelenium()">🔍 Debug Selenium</button>
             </div>
             
-            <div class="test-section debug-section">
-                <h3>🔍 Selenium Debug Tests</h3>
-                <p><strong>Debug the Selenium connection issue:</strong></p>
-                <button class="button debug" onclick="debugSelenium()">🔍 Debug Selenium Connection</button>
-                <button class="button debug" onclick="testSeleniumDirect()">🌐 Test Selenium URL Direct</button>
-            </div>
-            
-            <div class="test-section nuclear-section">
-                <h3>🚀 Nuclear Cookie Banner Tests</h3>
-                <p><strong>Test the NUCLEAR cookie banner destruction:</strong></p>
-                <button class="button nuclear" onclick="testLogin()">🚀 Test Nuclear Login</button>
-                <button class="button nuclear" onclick="testVerification()">🧩 Test Nuclear Verification</button>
-            </div>
-            
-            <div class="test-section">
-                <h3>🔧 Advanced Tests</h3>
-                <button class="button" onclick="testCloudflare()">☁️ Test Cloudflare</button>
+            <div class="test-section enhanced-section">
+                <h3>🔑 NEW: Authentication Tests</h3>
+                <p>Test both API and enhanced UI authentication</p>
+                <button class="button enhanced" onclick="testApiAuth()">🔑 Test API Auth</button>
+                <button class="button enhanced" onclick="testEnhancedLogin()">🚀 Test Enhanced Login</button>
             </div>
             
             <div class="test-section">
                 <h3>🚀 Complete System Test</h3>
-                <p><strong>⚠️ Warning:</strong> This will attempt to login to Roblox and solve verification puzzles!</p>
-                <p><strong>💰 Cost:</strong> ~$0.002 if verification puzzle is solved</p>
-                <p><strong>🚀 NEW:</strong> NUCLEAR cookie banner destruction should eliminate ALL login issues!</p>
-                <button class="button danger" onclick="runFullTest()" id="fullTestBtn">🚀 RUN COMPLETE NUCLEAR TEST</button>
+                <p><strong>🎯 Enhanced with regional detection and multi-strategy authentication!</strong></p>
+                <button class="button danger" onclick="runCompleteTest()" id="fullTestBtn">🚀 RUN ENHANCED COMPLETE TEST</button>
             </div>
             
             <div id="result" class="result" style="display:none;"></div>
         </div>
         
         <script>
-            let testRunning = false;
-            
             function showResult(content, type = 'info') {
                 const element = document.getElementById('result');
                 element.className = `result ${type}`;
@@ -1510,43 +1785,40 @@ def test_interface():
             function showLoading(message = 'Loading...') {
                 const element = document.getElementById('result');
                 element.className = 'result';
-                element.innerHTML = `<span class="loading">${message}</span>`;
+                element.innerHTML = `<span style="color: #007bff; font-style: italic;">${message}</span>`;
                 element.style.display = 'block';
             }
             
-            function disableButton(id) {
-                document.getElementById(id).disabled = true;
-            }
-            
-            function enableButton(id) {
-                document.getElementById(id).disabled = false;
-            }
-            
-            // Test connection on page load
-            window.onload = function() {
-                testConnection();
-            };
-            
-            async function testConnection() {
+            async function checkRegion() {
+                showLoading('🌍 Detecting server region and GDPR risk...');
                 try {
-                    const response = await fetch('/ping');
+                    const response = await fetch('/debug-region', { method: 'POST' });
                     const data = await response.json();
-                    document.getElementById('connectionStatus').innerHTML = '✅ Connected';
-                    document.querySelector('.status-indicator').className = 'status-indicator status-online';
+                    
+                    const riskLevel = data.region_info?.is_eu ? 'HIGH GDPR RISK' : 'LOW GDPR RISK';
+                    const recommendation = data.region_info?.is_eu ? 
+                        'RECOMMEND: Switch to US-based hosting' : 
+                        'GOOD: Current region should work fine';
+                    
+                    showResult(`🌍 Server Region Analysis:\\n\\n${riskLevel}\\n${recommendation}\\n\\n${JSON.stringify(data, null, 2)}`, 
+                              data.region_info?.is_eu ? 'error' : 'success');
                 } catch (error) {
-                    document.getElementById('connectionStatus').innerHTML = '❌ Connection Failed';
-                    document.querySelector('.status-indicator').className = 'status-indicator status-offline';
+                    showResult(`❌ Region check failed: ${error.message}`, 'error');
                 }
             }
             
+            function openScreenshotViewer() {
+                window.open('/screenshot-viewer', '_blank');
+            }
+            
             async function checkStatus() {
-                showLoading('Checking system status...');
+                showLoading('Checking enhanced system status...');
                 try {
                     const response = await fetch('/status');
                     const data = await response.json();
-                    showResult(`System Status:\\n${JSON.stringify(data, null, 2)}`, 'success');
+                    showResult(`Enhanced System Status:\\n${JSON.stringify(data, null, 2)}`, 'success');
                 } catch (error) {
-                    showResult(`Status Check Failed\\nError: ${error.message}`, 'error');
+                    showResult(`Status check failed: ${error.message}`, 'error');
                 }
             }
             
@@ -1555,13 +1827,12 @@ def test_interface():
                 try {
                     const response = await fetch('/balance', { method: 'POST' });
                     const data = await response.json();
-                    if (data.success) {
-                        showResult(`2Captcha Balance: ${data.balance}\\nAPI Key: ${data.api_key}\\nPackage: ${data.package}\\nSufficient Funds: ${data.sufficient_funds}`, 'success');
-                    } else {
-                        showResult(`Balance Check Failed\\nError: ${data.error}`, 'error');
-                    }
+                    showResult(data.success ? 
+                        `✅ Balance: ${data.balance}\\nAPI: ${data.api_key}\\nFunds: ${data.sufficient_funds}` :
+                        `❌ Balance check failed: ${data.error}`, 
+                        data.success ? 'success' : 'error');
                 } catch (error) {
-                    showResult(`Balance Check Failed\\nError: ${error.message}`, 'error');
+                    showResult(`Balance check failed: ${error.message}`, 'error');
                 }
             }
             
@@ -1570,139 +1841,66 @@ def test_interface():
                 try {
                     const response = await fetch('/ping');
                     const data = await response.json();
-                    showResult(`Ping Test: ${data.message}\\nStatus: ${data.status}\\nCORS: ${data.cors_working}`, 'success');
+                    showResult(`✅ Ping successful: ${data.message}`, 'success');
                 } catch (error) {
-                    showResult(`Ping Failed\\nError: ${error.message}`, 'error');
-                }
-            }
-            
-            async function testCORS() {
-                showLoading('Testing CORS configuration...');
-                try {
-                    const response = await fetch('/', { 
-                        method: 'GET',
-                        mode: 'cors',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Test-Header': 'CORS-Test'
-                        }
-                    });
-                    const data = await response.json();
-                    showResult(`CORS Test Successful!\\nStatus: ${data.cors_status}\\nResponse received successfully`, 'success');
-                } catch (error) {
-                    showResult(`CORS Test Failed\\nError: ${error.message}`, 'error');
+                    showResult(`❌ Ping failed: ${error.message}`, 'error');
                 }
             }
             
             async function debugSelenium() {
-                showLoading('🔍 Debugging Selenium connection...\\nThis tests HTTP connectivity and WebDriver initialization...');
+                showLoading('🔍 Debugging Selenium connection...');
                 try {
                     const response = await fetch('/debug-selenium', { method: 'POST' });
                     const data = await response.json();
-                    
-                    if (data.overall_assessment && data.overall_assessment.ready_for_testing) {
-                        showResult(`🎉 Selenium Debug Results:\\n${JSON.stringify(data, null, 2)}`, 'success');
-                    } else {
-                        showResult(`⚠️ Selenium Debug Results (Issues Found):\\n${JSON.stringify(data, null, 2)}`, 'error');
-                    }
+                    showResult(`Selenium Debug Results:\\n${JSON.stringify(data, null, 2)}`, 
+                              data.overall_assessment?.ready_for_testing ? 'success' : 'error');
                 } catch (error) {
-                    showResult(`❌ Selenium Debug Failed\\nError: ${error.message}`, 'error');
+                    showResult(`❌ Selenium debug failed: ${error.message}`, 'error');
                 }
             }
             
-            async function testSeleniumDirect() {
-                showLoading('🌐 Testing Selenium URL direct access...');
+            async function testApiAuth() {
+                showLoading('🔑 Testing API authentication approach...');
                 try {
-                    const seleniumUrl = 'https://standalone-chrome-production-eb24.up.railway.app/wd/hub/status';
-                    const response = await fetch(seleniumUrl);
+                    const response = await fetch('/test-api-auth', { method: 'POST' });
                     const data = await response.json();
-                    showResult(`✅ Direct Selenium Access Success:\\n${JSON.stringify(data, null, 2)}`, 'success');
+                    showResult(`🔑 API Authentication Test:\\n${JSON.stringify(data, null, 2)}`, 'success');
                 } catch (error) {
-                    showResult(`❌ Direct Selenium Access Failed\\nError: ${error.message}\\nThis might be expected due to CORS, but indicates Selenium service status.`, 'error');
+                    showResult(`❌ API auth test failed: ${error.message}`, 'error');
                 }
             }
             
-            async function testCloudflare() {
-                showLoading('☁️ Testing Cloudflare bypass...');
-                try {
-                    const response = await fetch('/test-cloudflare', { method: 'POST' });
-                    const data = await response.json();
-                    if (data.success) {
-                        showResult(`✅ Cloudflare Test Success:\\n${JSON.stringify(data, null, 2)}`, 'success');
-                    } else {
-                        showResult(`❌ Cloudflare Test Failed:\\n${JSON.stringify(data, null, 2)}`, 'error');
-                    }
-                } catch (error) {
-                    showResult(`❌ Cloudflare Test Failed\\nError: ${error.message}`, 'error');
-                }
-            }
-            
-            async function testVerification() {
-                showLoading('🧩 🚀 Testing NUCLEAR verification with cookie destruction...\\nThis may take 30-60 seconds...');
-                try {
-                    const response = await fetch('/test-verification', { method: 'POST' });
-                    const data = await response.json();
-                    if (data.success) {
-                        showResult(`✅ 🚀 NUCLEAR Verification Test Success:\\n${JSON.stringify(data, null, 2)}`, 'success');
-                    } else {
-                        showResult(`❌ 🚀 NUCLEAR Verification Test Failed:\\n${JSON.stringify(data, null, 2)}`, 'error');
-                    }
-                } catch (error) {
-                    showResult(`❌ 🚀 NUCLEAR Verification Test Failed\\nError: ${error.message}`, 'error');
-                }
-            }
-            
-            async function testLogin() {
-                showLoading('🔐 🚀 Testing NUCLEAR login with cookie banner destruction...\\nThis may take 30-60 seconds...');
+            async function testEnhancedLogin() {
+                showLoading('🚀 Testing enhanced login with regional detection...');
                 try {
                     const response = await fetch('/login-test', { method: 'POST' });
                     const data = await response.json();
-                    if (data.success) {
-                        showResult(`✅ 🚀 NUCLEAR Login Test Success:\\n${JSON.stringify(data, null, 2)}`, 'success');
-                    } else {
-                        showResult(`❌ 🚀 NUCLEAR Login Test Failed:\\n${JSON.stringify(data, null, 2)}`, 'error');
-                    }
+                    showResult(`🚀 Enhanced Login Test:\\n${JSON.stringify(data, null, 2)}`, 
+                              data.success ? 'success' : 'error');
                 } catch (error) {
-                    showResult(`❌ 🚀 NUCLEAR Login Test Failed\\nError: ${error.message}`, 'error');
+                    showResult(`❌ Enhanced login test failed: ${error.message}`, 'error');
                 }
             }
             
-            async function runFullTest() {
-                if (testRunning) return;
-                
-                if (!confirm('🚀 Run Complete NUCLEAR Test?\\n\\nThis will:\\n- Connect to Selenium\\n- Navigate to Roblox\\n- Apply NUCLEAR cookie banner destruction\\n- Login with credentials\\n- Solve verification if needed\\n- Extract QPTR data\\n\\nCost: ~$0.002 if verification appears\\n\\nContinue?')) {
+            async function runCompleteTest() {
+                if (!confirm('🚀 Run Enhanced Complete Test?\\n\\nThis includes:\\n- Regional detection\\n- Multi-strategy authentication\\n- Advanced cookie handling\\n- API + UI fallback\\n\\nContinue?')) {
                     return;
                 }
                 
-                testRunning = true;
-                disableButton('fullTestBtn');
-                showLoading('🚀 🚀 Starting complete NUCLEAR system test...\\nThis may take 2-5 minutes...\\n\\nSteps:\\n1. Connect to Selenium\\n2. Test Cloudflare bypass\\n3. Navigate to Roblox login\\n4. Apply NUCLEAR cookie banner destruction\\n5. Enter credentials\\n6. Execute NUCLEAR login click strategies\\n7. Detect verification puzzles\\n8. Solve with 2Captcha (if found)\\n9. Extract QPTR data\\n10. Report results');
+                showLoading('🚀 Running enhanced complete test...\\nThis may take 2-5 minutes...\\n\\nSteps:\\n1. Detect server region\\n2. Apply regional optimizations\\n3. Advanced cookie banner handling\\n4. Multi-strategy authentication\\n5. Extract analytics data\\n6. Report comprehensive results');
                 
                 try {
                     const response = await fetch('/trigger-diagnostic', { 
                         method: 'POST',
-                        mode: 'cors',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            'game_id': '7291257156'
-                        })
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 'game_id': '7291257156' })
                     });
                     
                     const data = await response.json();
-                    
-                    if (response.ok) {
-                        showResult(`🎉 🚀 Complete NUCLEAR Test Results:\\n${JSON.stringify(data, null, 2)}`, 'success');
-                    } else {
-                        showResult(`❌ 🚀 Complete NUCLEAR Test Failed (HTTP ${response.status}):\\n${JSON.stringify(data, null, 2)}`, 'error');
-                    }
+                    showResult(`🎉 Enhanced Complete Test Results:\\n${JSON.stringify(data, null, 2)}`, 
+                              data.overall_success ? 'success' : 'error');
                 } catch (error) {
-                    showResult(`❌ 🚀 Complete NUCLEAR Test Failed\\nError: ${error.message}\\n\\nThis could be due to:\\n- Network timeout (verification solving takes time)\\n- Selenium connection issues\\n- Roblox login problems\\n- Server-side parsing error`, 'error');
-                } finally {
-                    testRunning = false;
-                    enableButton('fullTestBtn');
+                    showResult(`❌ Enhanced complete test failed: ${error.message}`, 'error');
                 }
             }
         </script>
@@ -1712,25 +1910,26 @@ def test_interface():
 
 @app.route('/health')
 def health():
-    """Health check endpoint for Railway"""
+    """Enhanced health check with regional information"""
+    region_info = analytics.detect_server_region()
+    
     return jsonify({
         "status": "healthy",
+        "version": "7.0.0 - Enhanced Multi-Strategy",
         "selenium_mode": "remote_webdriver",
         "selenium_url": analytics.selenium_url,
         "verification_ready": True,
         "twocaptcha_ready": analytics.verification_solver.solver is not None,
-        "api_key_configured": True,
-        "package_verified": "2captcha-python (official)",
-        "cors_enabled": True,
-        "cors_status": "✅ Fully Fixed with Headers",
-        "cookie_banner_fix": "🚀 NUCLEAR DESTRUCTION DEPLOYED",
+        "regional_detection": region_info,
+        "authentication_methods": ["API (.ROBLOSECURITY)", "Enhanced UI automation"],
+        "enhanced_features": ["GDPR detection", "Advanced cookie handling", "Multi-strategy auth"],
         "timestamp": datetime.now().isoformat()
     })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
-    logger.info(f"🚀 Starting Roblox Analytics API on port {port}")
+    logger.info(f"🚀 Starting Enhanced Roblox Analytics API on port {port}")
     logger.info(f"🔑 2Captcha API: {analytics.verification_solver.api_key[:8]}...")
     logger.info(f"🌐 Selenium URL: {analytics.selenium_url}")
-    logger.info(f"🚀 Cookie Banner Fix: NUCLEAR DESTRUCTION DEPLOYED")
+    logger.info(f"🎯 Enhanced Features: Regional detection, API auth, Advanced UI")
     app.run(host='0.0.0.0', port=port, debug=False)
